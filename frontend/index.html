@@ -1,0 +1,424 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>吉信德企业门户</title>
+<style>
+  :root {
+    --blue: #2f6ef4;
+    --blue-dk: #2559cf;
+    --blue-bg: #e8f1fd;
+    --ink: #2a3a5c;
+    --ink-strong: #1d2f4e;
+    --dim: #8290a8;
+    --bg: #eef3f9;
+    --side-bg: #ffffff;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: "PingFang SC", "HarmonyOS Sans SC", "Microsoft YaHei", -apple-system, "Segoe UI", sans-serif;
+    background: var(--bg); color: var(--ink);
+    -webkit-font-smoothing: antialiased;
+  }
+  a { text-decoration: none; color: inherit; }
+  button { font-family: inherit; border: none; cursor: pointer; background: none; }
+  svg { flex: none; }
+  @media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }
+
+  /* ── 白色通栏顶栏 ── */
+  .top {
+    background: #fff; height: 64px; display: flex; align-items: center; gap: 26px;
+    padding: 0 26px; position: sticky; top: 0; z-index: 30;
+    border-bottom: 1px solid #eaf0f8;
+  }
+  .logo { display: flex; align-items: center; gap: 11px; flex: none; }
+  .logo .mk {
+    width: 40px; height: 40px; border-radius: 11px; color: #fff; font-size: 19px; font-weight: 800;
+    background: linear-gradient(140deg, #5793f8, #2e6ae8); display: grid; place-items: center;
+  }
+  .logo b { font-size: 17px; letter-spacing: .02em; color: var(--ink-strong); }
+  .logo small { display: block; font-size: 10.5px; color: var(--dim); letter-spacing: .12em; margin-top: 2px; font-weight: 400; }
+  .search {
+    flex: 1; max-width: 640px; display: flex; align-items: center; gap: 10px;
+    background: #f1f5fa; border-radius: 999px; padding: 11px 20px;
+  }
+  .search input {
+    flex: 1; border: none; outline: none; background: none; font-family: inherit;
+    font-size: 13.5px; color: var(--ink);
+  }
+  .search input::placeholder { color: #9fadc4; }
+  .top-right { margin-left: auto; display: flex; align-items: center; gap: 22px; }
+  .top-act {
+    display: none; flex-direction: column; align-items: center; gap: 3px;
+    font-size: 10.5px; color: #5c6b88; transition: color .15s;
+  }
+  .top-act:hover { color: var(--blue); }
+
+  /* 用户区（规范固定件：头像 + 下拉菜单 + 退出登录） */
+  .user-area { position: relative; }
+  .avatar-btn {
+    width: 36px; height: 36px; border-radius: 50%; cursor: pointer; overflow: hidden;
+    background: linear-gradient(140deg, #5793f8, #2e6ae8); color: #fff;
+    display: grid; place-items: center; font-size: 13px; font-weight: 600;
+    border: 2px solid #fff; box-shadow: 0 0 0 1px #e3ecf8;
+    transition: box-shadow .15s;
+  }
+  .avatar-btn:hover { box-shadow: 0 0 0 2px var(--blue); }
+  .avatar-btn img { width: 100%; height: 100%; object-fit: cover; }
+  .user-menu {
+    position: absolute; right: 0; top: 48px; min-width: 230px;
+    background: #fff; border: 1px solid #e6edf7; border-radius: 12px; padding: 6px;
+    box-shadow: 0 14px 40px rgba(29, 47, 78, .14);
+    display: none;
+  }
+  .user-menu.open { display: block; }
+  .user-menu .who { padding: 12px 14px 10px; border-bottom: 1px solid #eef3fa; }
+  .user-menu .who .name { font-size: 14px; font-weight: 650; color: var(--ink-strong); }
+  .user-menu .who .email { font-size: 12px; color: var(--dim); margin-top: 3px; word-break: break-all; }
+  .user-menu .who .roles { margin-top: 8px; display: flex; flex-wrap: wrap; gap: 5px; }
+  .role-chip {
+    font-size: 11px; padding: 2px 9px; border-radius: 4px; font-weight: 600;
+    background: var(--blue-bg); color: var(--blue);
+  }
+  .menu-item {
+    display: block; width: 100%; text-align: left;
+    padding: 10px 14px; margin-top: 4px; border-radius: 8px;
+    color: #e0455a; font-size: 13px;
+  }
+  .menu-item:hover { background: #fdeef0; }
+
+  /* ── 淡蓝灰侧边栏 + 内容 ── */
+  .layout { display: flex; min-height: calc(100vh - 64px); }
+  .side {
+    width: 196px; flex: none; background: var(--side-bg);
+    border-right: 1px solid #eaf0f8;
+    padding: 14px 12px 20px; display: flex; flex-direction: column; gap: 3px;
+    position: sticky; top: 64px; height: calc(100vh - 64px); overflow-y: auto;
+  }
+  .side-label {
+    font-size: 11px; color: #98a5bd; letter-spacing: .08em;
+    padding: 16px 14px 7px;
+  }
+  .nav {
+    display: flex; align-items: center; gap: 11px; padding: 12px 14px; border-radius: 10px;
+    font-size: 14px; color: #3d4d70; transition: all .15s; position: relative;
+    width: 100%; text-align: left; flex: none;
+  }
+  .nav:hover { color: var(--blue); background: #f4f8fe; }
+  .nav.on { background: var(--blue-bg); color: var(--blue); font-weight: 600; }
+  .nav.on::after {
+    content: ""; position: absolute; right: 9px; top: 50%; transform: translateY(-50%);
+    border: 4.5px solid transparent; border-right: 6px solid var(--blue);
+  }
+  .nav .ct { margin-left: auto; margin-right: 14px; font-size: 11px; color: #a4b0c8; font-weight: 400; }
+  .nav.on .ct { color: var(--blue); }
+  .side-card {
+    margin-top: auto; border-radius: 12px; padding: 15px 14px; position: relative; overflow: hidden;
+    background: linear-gradient(145deg, #4a8cf5 0%, #2e63e2 100%); color: #fff;
+  }
+  .side-card::after {
+    content: "🛡️"; position: absolute; right: -6px; bottom: -10px; font-size: 54px; opacity: .22;
+  }
+  .side-card .t { font-size: 13px; font-weight: 650; position: relative; }
+  .side-card p { font-size: 11.5px; opacity: .88; margin-top: 7px; line-height: 1.6; position: relative; }
+
+  .main { flex: 1; min-width: 0; }
+  .wrap { padding: 20px 24px 30px; }
+  .page-h { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; padding: 2px 2px 0; }
+  .page-h h1 { font-size: 20px; font-weight: 700; color: var(--ink-strong); }
+  .page-h span { font-size: 12.5px; color: var(--dim); }
+
+  .card {
+    margin-top: 16px; background: #fff; border-radius: 12px;
+    box-shadow: 0 2px 12px rgba(58, 110, 190, .05);
+  }
+  .card-h {
+    display: flex; align-items: center; gap: 10px;
+    padding: 16px 20px 4px; font-size: 15px; font-weight: 700; color: var(--ink-strong);
+  }
+  .card-h .hic {
+    width: 24px; height: 24px; border-radius: 7px; flex: none;
+    background: var(--blue-bg); color: var(--blue);
+    display: grid; place-items: center;
+  }
+  .card-h .ct { font-size: 12px; color: var(--dim); font-weight: 400; }
+
+  /* 应用卡片 */
+  .agrid {
+    display: grid; gap: 14px; padding: 14px 20px 22px;
+    grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+  }
+  .acard {
+    display: flex; align-items: center; gap: 14px;
+    background: #fff; border: 1px solid #eef2f9; border-radius: 12px; padding: 18px 16px;
+    box-shadow: 0 1px 4px rgba(58, 110, 190, .04);
+    transition: all .18s;
+  }
+  .acard:hover {
+    transform: translateY(-3px); border-color: #bcd4fb;
+    box-shadow: 0 10px 24px rgba(47, 110, 244, .12);
+  }
+  .acard .ic {
+    width: 50px; height: 50px; border-radius: 14px; font-size: 24px; color: #fff;
+    display: grid; place-items: center; flex: none;
+  }
+  .acard .ic img { width: 28px; height: 28px; object-fit: contain; }
+  .acard b { display: block; font-size: 14.5px; font-weight: 650; color: var(--ink-strong); }
+  .acard span { display: block; font-size: 12px; color: var(--dim); margin-top: 5px; line-height: 1.5; }
+
+  .state { padding: 40px 0 50px; text-align: center; color: var(--dim); font-size: 13px; }
+  .state .big { font-size: 38px; margin-bottom: 12px; }
+
+  /* 骨架屏 */
+  .skeleton {
+    height: 88px; border-radius: 12px; border: 1px solid #f0f4fa;
+    background: linear-gradient(100deg, #f4f7fb 40%, #ecf1f8 50%, #f4f7fb 60%);
+    background-size: 200% 100%; animation: shimmer 1.4s infinite;
+  }
+  @keyframes shimmer { to { background-position: -200% 0; } }
+
+  .pagefoot { text-align: center; font-size: 11.5px; color: #a9b6cc; padding: 26px 0 2px; }
+
+  @media (max-width: 780px) {
+    .side { display: none; }
+    .top { padding: 0 14px; gap: 14px; }
+    .logo small { display: none; }
+    .wrap { padding: 16px 14px; }
+  }
+</style>
+</head>
+<body>
+<header class="top">
+  <div class="logo">
+    <span class="mk">吉</span>
+    <div><b>吉信德企业门户</b><small>Amazon 跨境电商 · Petsfit</small></div>
+  </div>
+  <div class="search">🔍<input id="q" placeholder="搜索应用名称…"></div>
+  <div class="top-right">
+    <a class="top-act" id="adminLink" href="/admin">
+      <svg width="19" height="19" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><circle cx="8" cy="8" r="2.2"/><path d="M13 8c0-.4 0-.8-.1-1.1l1.4-1-1.2-2.1-1.6.6c-.6-.5-1.2-.9-2-1.1L9.2 1.6H6.8l-.3 1.7c-.8.2-1.4.6-2 1.1l-1.6-.6-1.2 2.1 1.4 1c-.1.3-.1.7-.1 1.1s0 .8.1 1.1l-1.4 1 1.2 2.1 1.6-.6c.6.5 1.2.9 2 1.1l.3 1.7h2.4l.3-1.7c.8-.2 1.4-.6 2-1.1l1.6.6 1.2-2.1-1.4-1c.1-.3.1-.7.1-1.1z"/></svg>
+      管理后台
+    </a>
+    <div class="user-area" id="userArea">
+      <button class="avatar-btn" id="avatarBtn" title="账户">…</button>
+      <div class="user-menu" id="userMenu">
+        <div class="who">
+          <div class="name" id="menuName">识别中</div>
+          <div class="email" id="menuEmail"></div>
+          <div class="roles" id="menuRoles"></div>
+        </div>
+        <button class="menu-item" id="logoutBtn">退出登录</button>
+      </div>
+    </div>
+  </div>
+</header>
+
+<div class="layout">
+  <aside class="side">
+    <nav id="catNav" style="display:flex;flex-direction:column;gap:3px">
+      <span class="nav on">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2" y="2" width="5" height="5" rx="1"/><rect x="9" y="2" width="5" height="5" rx="1"/><rect x="2" y="9" width="5" height="5" rx="1"/><rect x="9" y="9" width="5" height="5" rx="1"/></svg>
+        全部应用
+      </span>
+    </nav>
+    <a class="nav" id="sideAdminLink" href="/admin" style="display:none">
+      <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="8" cy="8" r="2.2"/><path d="M13 8c0-.4 0-.8-.1-1.1l1.4-1-1.2-2.1-1.6.6c-.6-.5-1.2-.9-2-1.1L9.2 1.6H6.8l-.3 1.7c-.8.2-1.4.6-2 1.1l-1.6-.6-1.2 2.1 1.4 1c-.1.3-.1.7-.1 1.1s0 .8.1 1.1l-1.4 1 1.2 2.1 1.6-.6c.6.5 1.2.9 2 1.1l.3 1.7h2.4l.3-1.7c.8-.2 1.4-.6 2-1.1l1.6.6 1.2-2.1-1.4-1c.1-.3.1-.7.1-1.1z"/></svg>
+      管理后台
+    </a>
+    <div class="side-card">
+      <div class="t">没有你需要的应用？</div>
+      <p>入口按你的角色权限展示，如需访问其他系统请联系管理员开通</p>
+    </div>
+  </aside>
+
+  <div class="main">
+    <div class="wrap">
+      <div class="page-h">
+        <h1 id="greetTitle">应用中心</h1>
+        <span id="cntLine">按你的权限展示，点击进入无需再次登录</span>
+      </div>
+
+      <div class="card">
+        <div class="card-h">
+          <span class="hic"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="2" y="2" width="5" height="5" rx="1"/><rect x="9" y="2" width="5" height="5" rx="1"/><rect x="2" y="9" width="5" height="5" rx="1"/><rect x="9" y="9" width="5" height="5" rx="1"/></svg></span>
+          <span id="gridTitle">A. 全部应用</span><span class="ct" id="gridCt"></span>
+        </div>
+        <div class="agrid" id="grid">
+          <div class="skeleton"></div><div class="skeleton"></div><div class="skeleton"></div>
+          <div class="skeleton"></div><div class="skeleton"></div><div class="skeleton"></div>
+        </div>
+      </div>
+
+      <div class="pagefoot">吉信德集团 · 企业门户 · portal.zestrade.com</div>
+    </div>
+  </div>
+</div>
+
+<script>
+const API_BASE = '';
+let allModules = [];
+
+async function fetchJSON(url, options) {
+  const resp = await fetch(API_BASE + url, { credentials: 'include', ...options });
+  if (!resp.ok) throw Object.assign(new Error('HTTP ' + resp.status), { status: resp.status });
+  return resp.json();
+}
+
+function esc(s) {
+  return String(s ?? '').replace(/[&<>"']/g, c =>
+    ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+}
+
+/* ── 用户区：头像 + 下拉菜单 + 退出登录（接入规范固定件）── */
+function renderUserArea(me) {
+  const btn = document.getElementById('avatarBtn');
+  const user = me?.user || {};
+  const name = user.display_name || user.displayName || user.email || '未登录';
+  const avatarUrl = user.avatar || user.avatar_url || '';
+
+  const setInitial = () => { btn.textContent = name === '未登录' ? '?' : name.slice(0, 1); };
+  if (avatarUrl) {
+    const img = new Image();
+    img.src = avatarUrl;
+    img.alt = name;
+    img.onerror = setInitial;           // 图片加载失败兜底成文字头像
+    img.onload = () => { btn.textContent = ''; btn.appendChild(img); };
+  } else {
+    setInitial();
+  }
+
+  document.getElementById('menuName').textContent = name;
+  document.getElementById('menuEmail').textContent = user.email || '';
+  document.getElementById('menuRoles').innerHTML =
+    (me?.roles || []).map(r => `<span class="role-chip">${esc(r)}</span>`).join('');
+  document.getElementById('greetTitle').textContent =
+    name === '未登录' ? '应用中心' : `应用中心 · 你好，${name}`;
+
+  if ((me?.roles || []).includes('admin')) {
+    document.getElementById('adminLink').style.display = 'flex';
+    document.getElementById('sideAdminLink').style.display = 'flex';
+  }
+}
+
+const menu = document.getElementById('userMenu');
+document.getElementById('avatarBtn').addEventListener('click', () => menu.classList.toggle('open'));
+// 点击菜单外部自动收起（规范要求：capture 阶段 + composedPath 判断）
+document.addEventListener('click', (e) => {
+  if (!e.composedPath().includes(document.getElementById('userArea'))) {
+    menu.classList.remove('open');
+  }
+}, true);
+
+document.getElementById('logoutBtn').addEventListener('click', () => {
+  window.location.assign(`${API_BASE}/logout?returnTo=${encodeURIComponent(window.location.href)}`);
+});
+
+/* ── 模块卡片 ── */
+const GRADS = [
+  'linear-gradient(140deg,#5793f8,#2e6ae8)',
+  'linear-gradient(140deg,#43d492,#1fae6e)',
+  'linear-gradient(140deg,#f9b04e,#f28c1c)',
+  'linear-gradient(140deg,#a98cf8,#7e5ce8)',
+  'linear-gradient(140deg,#f7c24b,#eda01f)',
+  'linear-gradient(140deg,#f88a7a,#ee5a45)',
+  'linear-gradient(140deg,#3fd0d9,#18a7b3)',
+  'linear-gradient(140deg,#6f7ef5,#4653e0)',
+];
+
+function renderModules(modules) {
+  const grid = document.getElementById('grid');
+  document.getElementById('gridTitle').textContent = `A. ${currentCat || '全部应用'}`;
+  document.getElementById('gridCt').textContent = `${modules.length} 个`;
+  document.getElementById('cntLine').textContent =
+    `共 ${modules.length} 个应用 · 按你的权限展示，点击进入无需再次登录`;
+  if (!modules.length) {
+    grid.innerHTML = `<div class="state" style="grid-column:1/-1"><div class="big">🗃️</div>
+      ${allModules.length ? '没有匹配的应用' : '暂无可用应用，请联系管理员为你分配权限'}</div>`;
+    return;
+  }
+  grid.innerHTML = modules.map((m, i) => {
+    const icon = /^https?:\/\//.test(m.icon)
+      ? `<img src="${esc(m.icon)}" alt="" onerror="this.style.display='none'">`
+      : esc(m.icon || '📦');
+    return `<a class="acard" href="${esc(m.url)}" target="_blank" rel="noopener">
+      <span class="ic" style="background:${GRADS[i % GRADS.length]}">${icon}</span>
+      <div><b>${esc(m.name)}</b><span>${esc(m.description)}</span></div>
+    </a>`;
+  }).join('');
+}
+
+/* ── 侧边栏应用分类（数据来自模块的 category 字段，空 = 未分类）── */
+const CAT_ORDER = ['电商运营', '供应链生产', '产品设计', '客户销售', '协同办公'];
+const CAT_ICONS = {
+  '__all__':  '<rect x="2" y="2" width="5" height="5" rx="1"/><rect x="9" y="2" width="5" height="5" rx="1"/><rect x="2" y="9" width="5" height="5" rx="1"/><rect x="9" y="9" width="5" height="5" rx="1"/>',
+  '电商运营': '<path d="M2 3h2l1.6 7.5h6.9L14 5H4.6"/><circle cx="6.6" cy="13" r="1.1"/><circle cx="11.4" cy="13" r="1.1"/>',
+  '供应链生产': '<path d="M8 2l6 3v6l-6 3-6-3V5z"/><path d="M2 5l6 3 6-3M8 8v6"/>',
+  '产品设计': '<path d="M11.3 2.7l2 2L5.6 12.4l-2.8.8.8-2.8zM10 4l2 2"/>',
+  '客户销售': '<circle cx="6" cy="5.8" r="2.3"/><path d="M2 13.4c0-2.1 1.8-3.4 4-3.4s4 1.3 4 3.4"/><circle cx="11.6" cy="6.4" r="1.7"/><path d="M11.2 10.1c1.7.3 2.8 1.4 2.8 3"/>',
+  '协同办公': '<rect x="2" y="3" width="12" height="8" rx="1.5"/><path d="M6 14h4M8 11v3"/>',
+  '未分类':   '<path d="M2 4.5A1.5 1.5 0 0 1 3.5 3h3L8 5h4.5A1.5 1.5 0 0 1 14 6.5v5a1.5 1.5 0 0 1-1.5 1.5h-9A1.5 1.5 0 0 1 2 11.5z"/>',
+};
+let currentCat = null;   // null = 全部应用
+
+function catIcon(name) {
+  return `<svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">${CAT_ICONS[name] || CAT_ICONS['未分类']}</svg>`;
+}
+
+function renderSideNav() {
+  const counts = {};
+  allModules.forEach(m => {
+    const c = m.category || '未分类';
+    counts[c] = (counts[c] || 0) + 1;
+  });
+  const cats = [
+    ...CAT_ORDER.filter(c => counts[c]),
+    ...Object.keys(counts).filter(c => !CAT_ORDER.includes(c) && c !== '未分类').sort(),
+    ...(counts['未分类'] ? ['未分类'] : []),
+  ];
+  const item = (key, label, count) => `
+    <button class="nav ${currentCat === key ? 'on' : ''}" data-cat="${esc(key ?? '__all__')}">
+      ${catIcon(key ?? '__all__')}${esc(label)}<span class="ct">${count}</span>
+    </button>`;
+  document.getElementById('catNav').innerHTML =
+    item(null, '全部应用', allModules.length) +
+    (cats.length ? '<div class="side-label">应用分类</div>' + cats.map(c => item(c, c, counts[c])).join('') : '');
+}
+
+document.getElementById('catNav').addEventListener('click', (e) => {
+  const btn = e.target.closest('.nav[data-cat]');
+  if (!btn) return;
+  currentCat = btn.dataset.cat === '__all__' ? null : btn.dataset.cat;
+  renderSideNav();
+  applyFilter();
+});
+
+/* 分类 + 顶栏搜索联合过滤（纯前端，作用于已加载的可见模块） */
+function applyFilter() {
+  const q = document.getElementById('q').value.trim().toLowerCase();
+  let list = allModules;
+  if (currentCat) list = list.filter(m => (m.category || '未分类') === currentCat);
+  if (q) list = list.filter(m => (m.name + m.description).toLowerCase().includes(q));
+  renderModules(list);
+}
+
+document.getElementById('q').addEventListener('input', applyFilter);
+
+(async function init() {
+  try {
+    const me = await fetchJSON('/api/me');
+    renderUserArea(me);
+    allModules = (await fetchJSON('/api/modules')).modules;
+    renderSideNav();
+    applyFilter();
+  } catch (err) {
+    renderUserArea(null);
+    document.getElementById('grid').innerHTML =
+      `<div class="state" style="grid-column:1/-1"><div class="big">🔒</div>
+       未登录或认证服务不可用（${esc(err.message)}）<br>
+       正常情况下会先被统一登录页拦截，请检查部署链路或联系管理员</div>`;
+  }
+})();
+</script>
+</body>
+</html>

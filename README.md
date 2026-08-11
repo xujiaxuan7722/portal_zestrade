@@ -1,0 +1,81 @@
+# ZesTrade 企业门户（portal.zestrade.com）
+
+公司内部应用导航门户：员工登录后看到自己有权访问的应用入口；管理员可在后台对模块做
+增删改、拖拽排序、按角色配置可见性。登录与权限完全依赖公司统一基础设施：
+
+- **SSO**：Keycloak（经 oauth2-proxy），本应用不做登录页
+- **RBAC**：统一权限服务 `rbac.bogoo.ai`，本应用不自己验 JWT / 管角色
+
+接入协议遵循公司《RBAC/SSO 接入规范》（rbac-sso-integration skill），
+`app/auth.py` 改自其 FastAPI 模板并按 Keycloak 链路启用。
+
+## 目录结构
+
+```
+app/
+  main.py     路由：/api/me、/api/modules（角色过滤）、/api/admin/*（CRUD/排序/角色池）、/logout
+  auth.py     RBAC/SSO 接入层：JWT 提取 → 换权限（缓存 5 分钟）→ require_auth/role/permission
+  db.py       SQLite：modules 表 + known_roles 角色池
+frontend/
+  index.html  门户首页（侧边栏应用分类 + 模块卡片 + 顶栏用户区：头像/下拉菜单/退出登录）
+  admin.html  管理后台（表格 + 编辑弹窗 + 拖拽排序 + 角色多选 + 分类）
+```
+
+## 本地开发
+
+```bash
+./run.sh          # 自动建 venv、装依赖，AUTH_BYPASS=true 启动
+# 打开 http://127.0.0.1:8000        门户首页
+# 打开 http://127.0.0.1:8000/admin  管理后台
+```
+
+AUTH_BYPASS=true 时认证层返回一个全权限测试用户（admin 角色），无需 RBAC / Keycloak
+即可开发全部功能。首次启动会创建 `portal.db` 并写入演示模块。
+
+## 应用分类
+
+- 模块有 `category` 字段（管理后台编辑，留空 = 归入"未分类"），门户首页侧边栏
+  按分类分组：全部应用 + 各分类（含数量），数量按当前用户可见模块统计
+- 预置分类：电商运营 / 供应链生产 / 产品设计 / 客户销售 / 协同办公，
+  管理后台可自由输入新分类名，前端自动出现在侧边栏
+- 老库升级：启动时自动 `ALTER TABLE` 加列，并按种子模块名回填分类
+
+## 角色可见性如何工作
+
+- 模块的"可见角色"存 RBAC 中的**角色名字符串**，空 = 所有人可见
+- `GET /api/modules` 在**后端**按当前用户角色过滤（前端隐藏只是体验优化，不是安全边界）；
+  **admin 角色在首页可见全部启用模块**（便于总览自检），其他角色严格按可见角色过滤
+- 删除角色池中的角色时，若仍被模块引用，后端返回 409 + 引用清单，前端确认后
+  以 `?force=true` 重试——会先把该角色从相关模块的可见角色中移除再删，
+  避免模块变成"谁也看不见"
+- RBAC 暂无角色列表接口，管理后台下拉框数据来自本地 `known_roles` 角色池：
+  - 用户每次访问 `/api/me`，其角色名自动收录（source=seen）
+  - 管理员可在弹窗里手动添加（source=manual）
+  - 将来 RBAC 提供角色接口后，把 `db.list_known_roles()` 的调用处换成远程拉取即可
+
+## 上线清单（按顺序）
+
+1. [ ] 向管理员申请 **Service Token**（CF Zero Trust），并在 rbac.bogoo.ai
+       对应 Application 的 Policy 中放行 → 填入 `RBAC_CLIENT_ID` / `RBAC_CLIENT_SECRET`
+2. [ ] 请 RBAC 管理员登记本业务权限码 / 确认 `admin` 角色分配
+3. [ ] 域名 `portal.zestrade.com` 接入 oauth2-proxy（Keycloak）保护
+4. [ ] **配置 `OAUTH2_PROXY_SIGN_OUT_URL`（必配）**，如
+       `https://portal.zestrade.com/oauth2/sign_out`——只登出 Keycloak 不清
+       oauth2-proxy 会话的话，用户刷新页面仍是登录态；未走 oauth2-proxy 的
+       特殊部署才用 `KEYCLOAK_CLIENT_ID` 兜底直连登出
+5. [ ] Keycloak Client → "Valid post logout redirect URIs" 加入
+       `https://portal.zestrade.com/*`（否则登出后无法跳回）
+6. [ ] **`AUTH_BYPASS=false`**（或不设）——未配 RBAC 凭证且未开 bypass 时
+       所有请求 401，属预期的 fail-closed 行为；防呆：bypass 与 RBAC 凭证
+       同时配置时应用直接拒绝启动
+7. [ ] 部署安全：应用端口只监听 `127.0.0.1`/内网，仅允许 oauth2-proxy 访问，
+       并确认 proxy 会覆盖客户端伪造的 `X-Auth-Request-*` / `Authorization` 头；
+       部署包**不要带本地的 `portal.db`**（含开发测试数据），首次启动自动播种
+8. [ ] 自检：浏览器直接访问 `/logout`，应回到统一登录页（proxy 会话已清）；
+       `returnTo` 只接受站内地址，外部地址会被丢弃；改角色后权限最多 5 分钟
+       生效（重新登录立即生效），为预期行为
+
+## 已知边界
+
+- 权限缓存为进程内存，多 worker 部署时各自独立；不能接受 5 分钟延迟才需要换 Redis
+- 单实例 SQLite 足够；如将来多实例部署，DB 与角色池需要挪到共享存储
