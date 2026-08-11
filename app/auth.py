@@ -98,19 +98,29 @@ class _CacheEntry:
     expires_at: float
 
 
-# AUTH_BYPASS 模式下返回的全权限测试用户（仅本地开发用）
+# AUTH_BYPASS 模式下返回的测试用户（仅本地开发用）。
+# 可用环境变量模拟不同角色的用户，测试可见性过滤：
+#   AUTH_BYPASS_NAME=财务小王 AUTH_BYPASS_ROLES=finance ./run.sh
+# 不设时默认为 admin 全权限用户；不同模拟用户（按邮箱区分）各有各的常用应用。
+AUTH_BYPASS_NAME = os.getenv("AUTH_BYPASS_NAME", "开发测试用户")
+AUTH_BYPASS_ROLES = [
+    r.strip() for r in os.getenv("AUTH_BYPASS_ROLES", "admin").split(",") if r.strip()
+]
+AUTH_BYPASS_EMAIL = os.getenv(
+    "AUTH_BYPASS_EMAIL", f"dev-{'-'.join(AUTH_BYPASS_ROLES)}@zestrade.com"
+)
 _BYPASS_AUTH = AuthInfo(
     matched=True,
     matched_by="bypass",
     user={
-        "id": "dev-user",
-        "display_name": "开发测试用户",
-        "email": "dev@zestrade.com",
+        "id": AUTH_BYPASS_EMAIL,
+        "display_name": AUTH_BYPASS_NAME,
+        "email": AUTH_BYPASS_EMAIL,
         "mobile": "",
         "status": "active",
     },
-    roles=[{"id": "dev-admin", "name": "admin", "source": "bypass"}],
-    permissions=["*"],
+    roles=[{"id": f"dev-{r}", "name": r, "source": "bypass"} for r in AUTH_BYPASS_ROLES],
+    permissions=["*"] if "admin" in AUTH_BYPASS_ROLES else [],
     contacts={},
 )
 

@@ -13,12 +13,38 @@
 
 ```
 app/
-  main.py     路由：/api/me、/api/modules（角色过滤）、/api/admin/*（CRUD/排序/角色池）、/logout
+  main.py     路由：/api/me、/api/modules(角色过滤)、/api/favorites(常用应用)、
+              /api/announcements(横幅公告)、/api/admin/*（模块/角色池/公告 CRUD + 审计）、/logout
   auth.py     RBAC/SSO 接入层：JWT 提取 → 换权限（缓存 5 分钟）→ require_auth/role/permission
-  db.py       SQLite：modules 表 + known_roles 角色池
+  db.py       PostgreSQL 数据层（psycopg3 + 连接池，DATABASE_URL 配置）
 frontend/
-  index.html  门户首页（侧边栏应用分类 + 模块卡片 + 顶栏用户区：头像/下拉菜单/退出登录）
-  admin.html  管理后台（表格 + 编辑弹窗 + 拖拽排序 + 角色多选 + 分类）
+  index.html  门户（hash 路由双视图：#workbench 个人工作台=常用应用[星标自定义]+全部应用；
+              #apps 全部应用=按分类分组的悬浮模块卡；横幅公告条；顶栏用户区）
+  admin.html  管理后台（与门户同款风格；模块表格/弹窗/拖拽排序/角色多选/分类 + 横幅公告管理）
+scripts/
+  migrate_sqlite_to_pg.py  旧 SQLite（portal.db）→ PostgreSQL 一次性迁移
+```
+
+## 数据结构（PostgreSQL）
+
+| 表 | 用途 | 要点 |
+|----|------|------|
+| `modules` | 应用模块 | `visible_roles TEXT[]`（空=所有人可见）；`status`（normal/maintenance，维护中门户显示角标）；`owner_name` 负责人；`created_at/updated_at` |
+| `known_roles` | 角色池 | 管理后台"可见角色"数据源；`source=seen` 为登录用户真实带回（保真），`manual` 为手动添加（未验证）；seen 可覆盖 manual |
+| `user_favorites` | 常用应用 | 个人工作台"我的常用"；外键 `ON DELETE CASCADE`，删模块自动清收藏 |
+| `announcements` | 横幅公告 | 门户顶部条；级别 info/warning、生效时间段（NULL=立即/长期）、可见角色复用模块规则 |
+| `audit_logs` | 管理操作审计 | 管理端所有写操作自动记录（谁/何时/对什么/做了什么，JSONB 详情）；查询 `GET /api/admin/audit`（暂无界面） |
+
+分类保持 `modules.category` 自由字符串（不单独建表）：管理后台输入即创建，规模小、交互已定型。
+
+### 从旧 SQLite 迁移
+
+```bash
+# 1. 建库（一次性，见 .env.example 注释）
+# 2. 迁移旧数据（保留 id/排序/收藏）：
+source .venv/bin/activate
+python scripts/migrate_sqlite_to_pg.py        # PG 已有数据时加 --force 清空重导
+# 3. 确认后归档旧库：mv portal.db portal.db.bak
 ```
 
 ## 本地开发
@@ -70,7 +96,8 @@ AUTH_BYPASS=true 时认证层返回一个全权限测试用户（admin 角色）
        同时配置时应用直接拒绝启动
 7. [ ] 部署安全：应用端口只监听 `127.0.0.1`/内网，仅允许 oauth2-proxy 访问，
        并确认 proxy 会覆盖客户端伪造的 `X-Auth-Request-*` / `Authorization` 头；
-       部署包**不要带本地的 `portal.db`**（含开发测试数据），首次启动自动播种
+       生产库单独建（`DATABASE_URL` 指向生产 PostgreSQL，强密码），
+       **不要连开发库**（含测试数据），空库首次启动自动播种
 8. [ ] 自检：浏览器直接访问 `/logout`，应回到统一登录页（proxy 会话已清）；
        `returnTo` 只接受站内地址，外部地址会被丢弃；改角色后权限最多 5 分钟
        生效（重新登录立即生效），为预期行为
@@ -78,4 +105,4 @@ AUTH_BYPASS=true 时认证层返回一个全权限测试用户（admin 角色）
 ## 已知边界
 
 - 权限缓存为进程内存，多 worker 部署时各自独立；不能接受 5 分钟延迟才需要换 Redis
-- 单实例 SQLite 足够；如将来多实例部署，DB 与角色池需要挪到共享存储
+- 数据层为 PostgreSQL（psycopg 连接池），多 worker / 多实例部署无共享存储问题
