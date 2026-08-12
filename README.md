@@ -81,6 +81,25 @@ AUTH_BYPASS=true 时认证层返回一个全权限测试用户（admin 角色）
   - 管理员可在弹窗里手动添加（source=manual）
   - 将来 RBAC 提供角色接口后，把 `db.list_known_roles()` 的调用处换成远程拉取即可
 
+## Docker 部署（公司统一口径，照 pm_system 模式）
+
+单镜像（FastAPI 直接伺服前端静态文件）；compose 只启动 app 一个服务，
+PostgreSQL / RBAC / oauth2-proxy 均为外部依赖，地址由 `.env` 注入。
+
+| 文件 | 作用 |
+|------|------|
+| `Dockerfile` | 单镜像构建（python:3.13-slim + 依赖 + app/frontend） |
+| `docker-compose.deploy.yml` | 生产 compose，仅启动 app，端口只绑 127.0.0.1 |
+| `.env.docker.example` | 生产环境变量模板（`cp` 为 `.env` 后填写） |
+| `docker/entrypoint.sh` | 容器启动入口（uvicorn，`BACKEND_PORT` 默认 8200） |
+| `docker/docker-build.sh` | 构建镜像（透传代理变量与 `PIP_INDEX_URL`） |
+| `docker/docker-deploy.sh` | `docker compose up -d` 启动/更新 |
+| `docker/git-deploy.sh` | 服务器更新：git pull → 构建 → 重启 |
+
+服务器首次部署：clone 仓库 → `cp .env.docker.example .env` 并填写 →
+`./docker/docker-build.sh` → `./docker/docker-deploy.sh`。
+之后每次更新只需 `./docker/git-deploy.sh`。
+
 ## 上线清单（按顺序）
 
 1. [ ] 向管理员申请 **Service Token**（CF Zero Trust），并在 rbac.bogoo.ai

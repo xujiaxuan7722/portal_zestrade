@@ -1,0 +1,14 @@
+# 生产部署 compose（照 pm_system 口径：只启动 app 一个服务，
+# PostgreSQL / RBAC / oauth2-proxy 均为外部依赖，地址由 .env 注入）
+services:
+  app:
+    image: ${APP_IMAGE:-portal-zestrade:latest}
+    container_name: portal-zestrade
+    restart: unless-stopped
+    env_file:
+      - .env
+    ports:
+      # 只绑 127.0.0.1：门户必须经同机 oauth2-proxy 访问，不得直接暴露
+      # （README 上线清单第 7 条）。若 oauth2-proxy 部署在其他机器/容器网络，
+      # 按实际拓扑调整绑定地址。
+      - "127.0.0.1:${BACKEND_PORT:-8200}:${BACKEND_PORT:-8200}"
