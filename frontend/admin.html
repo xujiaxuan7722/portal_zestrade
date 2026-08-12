@@ -48,6 +48,39 @@
   .top-right { margin-left: auto; display: flex; align-items: center; gap: 16px; }
   .whoami { font-size: 13px; color: var(--dim); }
 
+  /* 用户区（规范固定件：头像 + 下拉菜单 + 退出登录，与门户首页同款） */
+  .user-area { position: relative; }
+  .avatar-btn {
+    width: 36px; height: 36px; border-radius: 50%; cursor: pointer; overflow: hidden;
+    background: linear-gradient(140deg, #5793f8, #2e6ae8); color: #fff;
+    display: grid; place-items: center; font-size: 13px; font-weight: 600;
+    border: 2px solid #fff; box-shadow: 0 2px 8px rgba(61, 98, 176, .18);
+    transition: box-shadow .15s;
+  }
+  .avatar-btn:hover { box-shadow: 0 0 0 2px var(--blue); }
+  .avatar-btn img { width: 100%; height: 100%; object-fit: cover; }
+  .user-menu {
+    position: absolute; right: 0; top: 48px; min-width: 230px;
+    background: #fff; border-radius: 14px; padding: 6px;
+    box-shadow: 0 14px 40px rgba(29, 47, 78, .16);
+    display: none; z-index: 40;
+  }
+  .user-menu.open { display: block; }
+  .user-menu .who { padding: 12px 14px 10px; border-bottom: 1px solid #eef3fa; }
+  .user-menu .who .name { font-size: 14px; font-weight: 650; color: var(--ink-strong); }
+  .user-menu .who .email { font-size: 12px; color: var(--dim); margin-top: 3px; word-break: break-all; }
+  .user-menu .who .roles { margin-top: 8px; display: flex; flex-wrap: wrap; gap: 5px; }
+  .role-chip {
+    font-size: 11px; padding: 2px 9px; border-radius: 4px; font-weight: 600;
+    background: var(--blue-bg); color: var(--blue);
+  }
+  .menu-item {
+    display: block; width: 100%; text-align: left; background: none; border: none;
+    padding: 10px 14px; margin-top: 4px; border-radius: 8px;
+    color: #e0455a; font-size: 13px; font-family: inherit;
+  }
+  .menu-item:hover { background: #fdeef0; }
+
   /* ── 布局：侧边栏与背景一体 ── */
   .layout { display: flex; min-height: calc(100vh - 64px); }
   .side {
@@ -231,6 +264,17 @@
   </div>
   <div class="top-right">
     <span class="whoami" id="whoami"></span>
+    <div class="user-area" id="userArea">
+      <button class="avatar-btn" id="avatarBtn" title="账户">…</button>
+      <div class="user-menu" id="userMenu">
+        <div class="who">
+          <div class="name" id="menuName">识别中</div>
+          <div class="email" id="menuEmail"></div>
+          <div class="roles" id="menuRoles"></div>
+        </div>
+        <button class="menu-item" id="logoutBtn">退出登录</button>
+      </div>
+    </div>
   </div>
 </header>
 
@@ -801,6 +845,43 @@ async function loadAnns() {
   renderAnnTable();
 }
 
+/* ── 用户区：头像 + 下拉菜单 + 退出登录（接入规范固定件，与门户首页同款）── */
+function renderUserArea(me) {
+  const btn = document.getElementById('avatarBtn');
+  const user = me?.user || {};
+  const name = user.display_name || user.displayName || user.email || '未登录';
+  const avatarUrl = user.avatar || user.avatar_url || '';
+
+  const setInitial = () => { btn.textContent = name === '未登录' ? '?' : name.slice(0, 1); };
+  if (avatarUrl) {
+    const img = new Image();
+    img.src = avatarUrl;
+    img.alt = name;
+    img.onerror = setInitial;           // 图片加载失败兜底成文字头像
+    img.onload = () => { btn.textContent = ''; btn.appendChild(img); };
+  } else {
+    setInitial();
+  }
+
+  document.getElementById('menuName').textContent = name;
+  document.getElementById('menuEmail').textContent = user.email || '';
+  document.getElementById('menuRoles').innerHTML =
+    (me?.roles || []).map(r => `<span class="role-chip">${esc(r)}</span>`).join('');
+}
+
+const userMenu = document.getElementById('userMenu');
+document.getElementById('avatarBtn').addEventListener('click', () => userMenu.classList.toggle('open'));
+// 点击菜单外部自动收起（规范要求：capture 阶段 + composedPath 判断）
+document.addEventListener('click', (e) => {
+  if (!e.composedPath().includes(document.getElementById('userArea'))) {
+    userMenu.classList.remove('open');
+  }
+}, true);
+
+document.getElementById('logoutBtn').addEventListener('click', () => {
+  window.location.assign(`${API_BASE}/logout?returnTo=${encodeURIComponent(window.location.href)}`);
+});
+
 /* ── 初始化 ── */
 async function loadModules() {
   modules = (await fetchJSON('/api/admin/modules')).modules;
@@ -808,9 +889,13 @@ async function loadModules() {
 }
 
 (async function init() {
+  let me = null;
   try {
-    const me = await fetchJSON('/api/me');
-    if (!(me.roles || []).includes('admin')) throw Object.assign(new Error('forbidden'), { status: 403 });
+    me = await fetchJSON('/api/me');
+  } catch {}
+  renderUserArea(me);   // 非 admin 落到 403 页时也要有登出入口
+  try {
+    if (!(me?.roles || []).includes('admin')) throw Object.assign(new Error('forbidden'), { status: 403 });
     document.getElementById('whoami').textContent =
       `${me.user?.display_name || me.user?.email || ''} · admin`;
     knownRoles = (await fetchJSON('/api/admin/roles')).roles;

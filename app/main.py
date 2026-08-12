@@ -22,6 +22,7 @@ main.py — ZesTrade 企业门户后端
   GET  /                            门户首页（静态）
 """
 
+from contextlib import asynccontextmanager
 from datetime import datetime
 from pathlib import Path
 from typing import Annotated, Literal, Optional
@@ -29,13 +30,14 @@ from typing import Annotated, Literal, Optional
 from fastapi import Depends, FastAPI, HTTPException, Request
 from fastapi.responses import FileResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 from . import db
 from .auth import (
     AuthInfo,
     build_logout_url,
     clear_auth_cache,
+    close_http_client,
     extract_user_jwt,
     require_auth,
     require_role,
@@ -44,8 +46,16 @@ from .auth import (
 
 FRONTEND_DIR = Path(__file__).resolve().parent.parent / "frontend"
 
-app = FastAPI(title="ZesTrade Portal", docs_url=None, redoc_url=None)
-db.init_db()
+
+@asynccontextmanager
+async def lifespan(_app: FastAPI):
+    db.init_db()
+    yield
+    await close_http_client()
+    db.close_pool()
+
+
+app = FastAPI(title="ZesTrade Portal", docs_url=None, redoc_url=None, lifespan=lifespan)
 
 
 class ModuleIn(BaseModel):
@@ -63,6 +73,14 @@ class ModuleIn(BaseModel):
     enabled: bool = True
     status: Literal["normal", "maintenance"] = "normal"  # maintenance = 门户显示"维护中"
     owner_name: str = Field(default="", max_length=50)   # 系统负责人，"出问题找谁"
+
+    @field_validator("url")
+    @classmethod
+    def _url_must_be_http(cls, v: str) -> str:
+        # 门户卡片是 <a href> 直接跳转，禁掉 javascript: 等伪协议
+        if not v.lower().startswith(("http://", "https://")):
+            raise ValueError("url must start with http:// or https://")
+        return v
 
 
 class AnnouncementIn(BaseModel):

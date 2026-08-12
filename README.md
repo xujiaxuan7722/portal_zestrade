@@ -56,7 +56,9 @@ python scripts/migrate_sqlite_to_pg.py        # PG 已有数据时加 --force �
 ```
 
 AUTH_BYPASS=true 时认证层返回一个全权限测试用户（admin 角色），无需 RBAC / Keycloak
-即可开发全部功能。首次启动会创建 `portal.db` 并写入演示模块。
+即可开发全部功能。需要本地 PostgreSQL 已就绪（建库见 `.env.example` 注释，
+连接串默认 `postgresql://portal:portal@127.0.0.1:5432/portal`）；
+空库首次启动自动建表并播种演示模块。
 
 ## 应用分类
 
@@ -64,7 +66,7 @@ AUTH_BYPASS=true 时认证层返回一个全权限测试用户（admin 角色）
   按分类分组：全部应用 + 各分类（含数量），数量按当前用户可见模块统计
 - 预置分类：电商运营 / 供应链生产 / 产品设计 / 客户销售 / 协同办公，
   管理后台可自由输入新分类名，前端自动出现在侧边栏
-- 老库升级：启动时自动 `ALTER TABLE` 加列，并按种子模块名回填分类
+- 旧 SQLite 库的分类数据由 `scripts/migrate_sqlite_to_pg.py` 一并迁入
 
 ## 角色可见性如何工作
 

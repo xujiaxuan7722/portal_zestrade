@@ -3,6 +3,6 @@
 __pycache__/
 *.pyc
 
-# 本地数据与密钥（portal.db 含开发测试数据，线上首次启动自动播种）
-portal.db
+# 本地数据与密钥（portal.db* 为已迁移归档的旧 SQLite 库，线上首次启动自动播种）
+portal.db*
 .env

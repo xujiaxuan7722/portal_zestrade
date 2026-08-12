@@ -232,6 +232,14 @@ def _get_http_client() -> httpx.AsyncClient:
     return _http_client
 
 
+async def close_http_client() -> None:
+    """应用关闭时调用：优雅关闭到 RBAC 的 keep-alive 连接。"""
+    global _http_client
+    if _http_client is not None:
+        await _http_client.aclose()
+        _http_client = None
+
+
 async def get_auth_info(jwt_token: str) -> Optional[AuthInfo]:
     if not jwt_token:
         return None
