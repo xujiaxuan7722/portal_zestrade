@@ -8,7 +8,7 @@ migrate_sqlite_to_pg.py — 把旧的 SQLite（portal.db）数据迁到 PostgreS
         python scripts/migrate_sqlite_to_pg.py [--force]
 
 行为：
-  - 自动建表（如不存在）
+  - 自动建表（执行 migrations/*.sql，如不存在）
   - PG 的 modules 表已有数据时拒绝迁移（避免重复导入）；--force 会先清空再导
   - 保留原 id / 排序 / 收藏关系；导完把自增序列拨到 MAX(id)
   - 找不到 portal.db 时只建表（等应用启动时播种）
@@ -33,7 +33,7 @@ def main() -> None:
     parser.add_argument("--force", action="store_true", help="清空 PG 现有数据后重新导入")
     args = parser.parse_args()
 
-    db.create_schema()
+    db.run_migrations()
     print(f"[1/4] PG 表结构就绪（{db.DATABASE_URL.split('@')[-1]}）")
 
     if not SQLITE_PATH.exists():

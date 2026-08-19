@@ -11,8 +11,8 @@ Service Token，并需在 rbac.bogoo.ai 的 Application Policy 中放行）—�
 """
 
 import hashlib
+import logging
 import os
-import sys
 import time
 from dataclasses import dataclass
 from typing import Any, Optional
@@ -20,6 +20,8 @@ from urllib.parse import urlencode, urlsplit
 
 import httpx
 from fastapi import Depends, HTTPException, Request
+
+logger = logging.getLogger(__name__)
 
 # ============================================================
 # 配置
@@ -67,10 +69,9 @@ def _validate_idp_config() -> None:
         and not OAUTH2_PROXY_SIGN_OUT_URL
         and not KEYCLOAK_CLIENT_ID
     ):
-        print(
-            "[auth] 警告: 未配置 OAUTH2_PROXY_SIGN_OUT_URL（推荐，经 oauth2-proxy 部署时必配）"
-            "也未配置 KEYCLOAK_CLIENT_ID——登出将不彻底或被 Keycloak 拒绝跳转",
-            file=sys.stderr,
+        logger.warning(
+            "未配置 OAUTH2_PROXY_SIGN_OUT_URL（推荐，经 oauth2-proxy 部署时必配）"
+            "也未配置 KEYCLOAK_CLIENT_ID——登出将不彻底或被 Keycloak 拒绝跳转"
         )
 
 
@@ -261,10 +262,17 @@ async def get_auth_info(jwt_token: str) -> Optional[AuthInfo]:
             json={"jwt": jwt_token},
         )
         if resp.status_code != 200:
+            logger.warning(
+                "RBAC by-jwt 返回 %s（%ss 内该 token 负缓存为未认证）",
+                resp.status_code, NEG_CACHE_TTL,
+            )
             _set_cached(jwt_token, None, NEG_CACHE_TTL)
             return None
         auth = _to_auth_info(resp.json())
-    except Exception:
+    except Exception as exc:
+        logger.warning(
+            "RBAC 调用异常：%r（%ss 内该 token 负缓存为未认证）", exc, NEG_CACHE_TTL
+        )
         _set_cached(jwt_token, None, NEG_CACHE_TTL)
         return None
 

@@ -1,9 +1,13 @@
 """
 db.py — PostgreSQL 数据层（psycopg3 + 连接池）
 
-连接：环境变量 DATABASE_URL（默认 postgresql://portal:portal@127.0.0.1:5432/portal）
+连接：环境变量 DATABASE_URL。仅本地开发（AUTH_BYPASS=true）允许缺省回落本地默认库；
+生产模式缺省即拒绝启动（防止静默连上弱口令开发库）。
 
-五张表（完整 DDL 见 _SCHEMA，设计说明见 README「数据结构」）：
+表结构版本化：migrations/*.sql 按文件名顺序执行，schema_migrations 表记录已执行版本
+（应用启动时自动跑）。改表 = 新增编号递增的 SQL 文件，勿改已执行过的文件。
+
+五张表（完整 DDL 见 migrations/001_baseline.sql，设计说明见 README「数据结构」）：
   modules         门户展示的应用模块（可见角色 TEXT[]、负责人、维护状态、时间戳）
   known_roles     已知角色名池：管理后台"可见角色"下拉框的数据源。
                   RBAC 目前没有角色列表接口，采用"自动收录 + 手动添加"；
@@ -14,16 +18,26 @@ db.py — PostgreSQL 数据层（psycopg3 + 连接池）
 """
 
 import os
+import time
 from datetime import datetime
+from pathlib import Path
 from typing import Any, Optional
 
 from psycopg.rows import dict_row
 from psycopg.types.json import Jsonb
 from psycopg_pool import ConnectionPool
 
-DATABASE_URL = os.getenv(
-    "DATABASE_URL", "postgresql://portal:portal@127.0.0.1:5432/portal"
-)
+# 仅本地开发（AUTH_BYPASS=true）允许缺省回落本地默认库；生产模式漏配 DATABASE_URL
+# 会静默连上弱口令开发库——与 auth 的 bypass 防呆同款思路：直接拒绝启动
+_AUTH_BYPASS = os.getenv("AUTH_BYPASS", "false").strip().lower() in ("1", "true", "yes")
+DATABASE_URL = os.getenv("DATABASE_URL", "")
+if not DATABASE_URL:
+    if not _AUTH_BYPASS:
+        raise RuntimeError(
+            "未配置 DATABASE_URL——生产模式（未开 AUTH_BYPASS）不回落本地默认库，"
+            "请在 .env 中配置生产库连接串"
+        )
+    DATABASE_URL = "postgresql://portal:portal@127.0.0.1:5432/portal"
 
 _pool: Optional[ConnectionPool] = None
 
@@ -40,63 +54,6 @@ def pool() -> ConnectionPool:
         )
     return _pool
 
-
-_SCHEMA = """
-CREATE TABLE IF NOT EXISTS modules (
-  id            BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-  name          TEXT        NOT NULL CHECK (char_length(name) BETWEEN 1 AND 50),
-  description   TEXT        NOT NULL DEFAULT '' CHECK (char_length(description) <= 200),
-  icon          TEXT        NOT NULL DEFAULT '📦' CHECK (char_length(icon) <= 200),
-  url           TEXT        NOT NULL CHECK (char_length(url) BETWEEN 1 AND 500),
-  category      TEXT        NOT NULL DEFAULT '' CHECK (char_length(category) <= 50),
-  sort_order    INTEGER     NOT NULL DEFAULT 0,
-  visible_roles TEXT[]      NOT NULL DEFAULT '{}',      -- 空数组 = 所有人可见
-  enabled       BOOLEAN     NOT NULL DEFAULT TRUE,
-  status        TEXT        NOT NULL DEFAULT 'normal'
-                            CHECK (status IN ('normal', 'maintenance')),
-  owner_name    TEXT        NOT NULL DEFAULT '' CHECK (char_length(owner_name) <= 50),
-  created_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
-  updated_at    TIMESTAMPTZ NOT NULL DEFAULT now()
-);
-
-CREATE TABLE IF NOT EXISTS known_roles (
-  name       TEXT PRIMARY KEY CHECK (char_length(name) BETWEEN 1 AND 50),
-  source     TEXT        NOT NULL DEFAULT 'seen' CHECK (source IN ('seen', 'manual')),
-  last_seen  TIMESTAMPTZ NOT NULL DEFAULT now()
-);
-
-CREATE TABLE IF NOT EXISTS user_favorites (
-  user_id    TEXT    NOT NULL CHECK (char_length(user_id) <= 200),
-  module_id  BIGINT  NOT NULL REFERENCES modules(id) ON DELETE CASCADE,
-  position   INTEGER NOT NULL DEFAULT 0,
-  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-  PRIMARY KEY (user_id, module_id)
-);
-CREATE INDEX IF NOT EXISTS idx_user_favorites_user ON user_favorites (user_id);
-
-CREATE TABLE IF NOT EXISTS announcements (
-  id            BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-  content       TEXT        NOT NULL CHECK (char_length(content) BETWEEN 1 AND 200),
-  level         TEXT        NOT NULL DEFAULT 'info' CHECK (level IN ('info', 'warning')),
-  starts_at     TIMESTAMPTZ,                            -- NULL = 立即生效
-  ends_at       TIMESTAMPTZ,                            -- NULL = 长期有效
-  visible_roles TEXT[]      NOT NULL DEFAULT '{}',      -- 空数组 = 所有人可见
-  enabled       BOOLEAN     NOT NULL DEFAULT TRUE,
-  created_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
-  updated_at    TIMESTAMPTZ NOT NULL DEFAULT now()
-);
-
-CREATE TABLE IF NOT EXISTS audit_logs (
-  id          BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-  actor       TEXT        NOT NULL DEFAULT '',          -- 操作人（display_name/email）
-  action      TEXT        NOT NULL,                     -- create/update/delete/reorder/...
-  target_type TEXT        NOT NULL,                     -- module/role/announcement
-  target_id   TEXT        NOT NULL DEFAULT '',
-  detail      JSONB       NOT NULL DEFAULT '{}'::jsonb,
-  created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
-);
-CREATE INDEX IF NOT EXISTS idx_audit_logs_created ON audit_logs (created_at DESC);
-"""
 
 _SEED_MODULES = [
     # (name, description, icon, url, category, visible_roles)
@@ -115,9 +72,31 @@ _SEED_MODULES = [
 ]
 
 
-def create_schema() -> None:
+MIGRATIONS_DIR = Path(__file__).resolve().parent.parent / "migrations"
+
+
+def run_migrations() -> None:
+    """按文件名顺序执行 migrations/*.sql，schema_migrations 里已记录的跳过。
+    每个迁移与其版本记录在同一事务提交（psycopg 连接上下文退出即 commit），
+    失败则整体回滚、异常上抛——应用拒绝启动，不会带着半套表结构跑。"""
     with pool().connection() as conn:
-        conn.execute(_SCHEMA)
+        conn.execute(
+            "CREATE TABLE IF NOT EXISTS schema_migrations ("
+            "  version    TEXT PRIMARY KEY,"
+            "  applied_at TIMESTAMPTZ NOT NULL DEFAULT now())"
+        )
+        applied = {
+            r["version"]
+            for r in conn.execute("SELECT version FROM schema_migrations").fetchall()
+        }
+    for path in sorted(MIGRATIONS_DIR.glob("*.sql")):
+        if path.stem in applied:
+            continue
+        with pool().connection() as conn:
+            conn.execute(path.read_text(encoding="utf-8"))
+            conn.execute(
+                "INSERT INTO schema_migrations (version) VALUES (%s)", (path.stem,)
+            )
 
 
 def seed_if_empty() -> None:
@@ -141,7 +120,7 @@ def seed_if_empty() -> None:
 
 
 def init_db() -> None:
-    create_schema()
+    run_migrations()
     seed_if_empty()
 
 
@@ -242,26 +221,43 @@ def reorder_modules(ids: list[int]) -> None:
 # ============================================================
 
 
+# /api/me 每次请求都会调 record_roles(seen)：TTL 内写过的角色名直接跳过，避免每个
+# 页面加载都写库。代价是 last_seen 精度降为 ≤5 分钟；进程内缓存，多 worker 各自独立。
+_ROLES_SEEN_TTL = 300
+_roles_seen_at: dict[str, float] = {}
+
+
 def record_roles(names: list[str], source: str = "seen") -> None:
     """把出现过的角色名收录进池子（已存在则只刷新 last_seen；seen 可覆盖 manual 来源，
-    表示该角色已被真实用户带回、得到验证）。"""
-    names = [n.strip() for n in names if n and n.strip()]
+    表示该角色已被真实用户带回、得到验证）。单条批量 upsert。"""
+    names = sorted({n.strip() for n in names if n and n.strip()})
     if not names:
         return
-    with pool().connection() as conn:
-        for name in names:
-            if source == "seen":
-                conn.execute(
-                    "INSERT INTO known_roles (name, source, last_seen) VALUES (%s, 'seen', now())"
-                    " ON CONFLICT (name) DO UPDATE SET last_seen = now(), source = 'seen'",
-                    (name,),
-                )
-            else:
-                conn.execute(
-                    "INSERT INTO known_roles (name, source, last_seen) VALUES (%s, %s, now())"
-                    " ON CONFLICT (name) DO UPDATE SET last_seen = now()",
-                    (name, source),
-                )
+    if source == "seen":
+        now = time.monotonic()
+        names = [
+            n for n in names
+            if (t := _roles_seen_at.get(n)) is None or now - t >= _ROLES_SEEN_TTL
+        ]
+        if not names:
+            return
+        with pool().connection() as conn:
+            conn.execute(
+                "INSERT INTO known_roles (name, source, last_seen)"
+                " SELECT unnest(%s::text[]), 'seen', now()"
+                " ON CONFLICT (name) DO UPDATE SET last_seen = now(), source = 'seen'",
+                (names,),
+            )
+        for n in names:
+            _roles_seen_at[n] = now
+    else:
+        with pool().connection() as conn:
+            conn.execute(
+                "INSERT INTO known_roles (name, source, last_seen)"
+                " SELECT unnest(%s::text[]), %s, now()"
+                " ON CONFLICT (name) DO UPDATE SET last_seen = now()",
+                (names, source),
+            )
 
 
 def list_known_roles() -> list[dict]:

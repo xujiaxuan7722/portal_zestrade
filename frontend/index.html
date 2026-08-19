@@ -4,45 +4,9 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>吉信德企业门户</title>
+<link rel="stylesheet" href="/common.css">
 <style>
-  :root {
-    --blue: #2f6ef4;
-    --blue-dk: #2559cf;
-    --blue-bg: #e8f1fd;
-    --ink: #2a3a5c;
-    --ink-strong: #1d2f4e;
-    --dim: #71809c;
-    --star: #f5a623;
-  }
-  * { margin: 0; padding: 0; box-sizing: border-box; }
-  body {
-    font-family: "PingFang SC", "HarmonyOS Sans SC", "Microsoft YaHei", -apple-system, "Segoe UI", sans-serif;
-    /* 渐变画布：浅蓝为主，右上一点微暖粉紫晕 */
-    background:
-      radial-gradient(900px 420px at 88% 0%, rgba(246, 226, 234, .55), transparent 60%),
-      linear-gradient(115deg, #cfe1f8 0%, #dce8fb 40%, #e7edfb 100%);
-    min-height: 100vh; color: var(--ink);
-    -webkit-font-smoothing: antialiased;
-  }
-  a { text-decoration: none; color: inherit; }
-  button { font-family: inherit; border: none; cursor: pointer; background: none; }
-  svg { flex: none; }
-  @media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }
-
-  /* ── 顶栏：与背景一体，轻磨砂 ── */
-  .top {
-    background: rgba(233, 240, 251, .55);
-    backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px);
-    height: 64px; display: flex; align-items: center; gap: 26px;
-    padding: 0 26px; position: sticky; top: 0; z-index: 30;
-  }
-  .logo { display: flex; align-items: center; gap: 11px; flex: none; }
-  .logo .mk {
-    width: 40px; height: 40px; border-radius: 11px; color: #fff; font-size: 19px; font-weight: 800;
-    background: linear-gradient(140deg, #5793f8, #2e6ae8); display: grid; place-items: center;
-  }
-  .logo b { font-size: 17px; letter-spacing: .02em; color: var(--ink-strong); }
-  .logo small { display: block; font-size: 10.5px; color: var(--dim); letter-spacing: .12em; margin-top: 2px; font-weight: 400; }
+  /* 页面特有样式；共用部分（变量/顶栏/用户区/侧边栏/卡片基础）见 common.css */
   .search {
     flex: 1; max-width: 560px; display: flex; align-items: center; gap: 10px;
     background: #fff; border-radius: 999px; padding: 11px 20px;
@@ -55,71 +19,6 @@
   .search input::placeholder { color: #9fadc4; }
   .top-right { margin-left: auto; display: flex; align-items: center; gap: 22px; }
 
-  /* 用户区（规范固定件：头像 + 下拉菜单 + 退出登录） */
-  .user-area { position: relative; }
-  .avatar-btn {
-    width: 36px; height: 36px; border-radius: 50%; cursor: pointer; overflow: hidden;
-    background: linear-gradient(140deg, #5793f8, #2e6ae8); color: #fff;
-    display: grid; place-items: center; font-size: 13px; font-weight: 600;
-    border: 2px solid #fff; box-shadow: 0 2px 8px rgba(61, 98, 176, .18);
-    transition: box-shadow .15s;
-  }
-  .avatar-btn:hover { box-shadow: 0 0 0 2px var(--blue); }
-  .avatar-btn img { width: 100%; height: 100%; object-fit: cover; }
-  .user-menu {
-    position: absolute; right: 0; top: 48px; min-width: 230px;
-    background: #fff; border-radius: 14px; padding: 6px;
-    box-shadow: 0 14px 40px rgba(29, 47, 78, .16);
-    display: none; z-index: 40;
-  }
-  .user-menu.open { display: block; }
-  .user-menu .who { padding: 12px 14px 10px; border-bottom: 1px solid #eef3fa; }
-  .user-menu .who .name { font-size: 14px; font-weight: 650; color: var(--ink-strong); }
-  .user-menu .who .email { font-size: 12px; color: var(--dim); margin-top: 3px; word-break: break-all; }
-  .user-menu .who .roles { margin-top: 8px; display: flex; flex-wrap: wrap; gap: 5px; }
-  .role-chip {
-    font-size: 11px; padding: 2px 9px; border-radius: 4px; font-weight: 600;
-    background: var(--blue-bg); color: var(--blue);
-  }
-  .menu-item {
-    display: block; width: 100%; text-align: left;
-    padding: 10px 14px; margin-top: 4px; border-radius: 8px;
-    color: #e0455a; font-size: 13px;
-  }
-  .menu-item:hover { background: #fdeef0; }
-
-  /* ── 布局：侧边栏与背景一体 ── */
-  .layout { display: flex; min-height: calc(100vh - 64px); }
-  .side {
-    width: 200px; flex: none;
-    padding: 18px 14px 22px; display: flex; flex-direction: column; gap: 3px;
-    position: sticky; top: 64px; height: calc(100vh - 64px); overflow-y: auto;
-  }
-  .nav {
-    display: flex; align-items: center; gap: 11px; padding: 12px 14px; border-radius: 11px;
-    font-size: 14px; color: #40506f; transition: all .15s; position: relative;
-    width: 100%; text-align: left; flex: none;
-  }
-  .nav:hover { color: var(--blue); background: rgba(255, 255, 255, .5); }
-  .nav.on {
-    background: #fff; color: var(--blue); font-weight: 600;
-    box-shadow: 0 6px 18px rgba(61, 98, 176, .14);
-  }
-  .nav .ct { margin-left: auto; font-size: 11px; color: #93a1bc; font-weight: 400; }
-  .nav.on .ct { color: var(--blue); }
-  .side-card {
-    margin-top: auto; border-radius: 14px; padding: 15px 14px; position: relative; overflow: hidden;
-    background: linear-gradient(145deg, #4a8cf5 0%, #2e63e2 100%); color: #fff;
-    box-shadow: 0 10px 26px rgba(46, 99, 226, .28);
-  }
-  .side-card::after {
-    content: "🐾"; position: absolute; right: -6px; bottom: -10px; font-size: 54px; opacity: .22;
-  }
-  .side-card .t { font-size: 13px; font-weight: 650; position: relative; }
-  .side-card p { font-size: 11.5px; opacity: .88; margin-top: 7px; line-height: 1.6; position: relative; }
-
-  /* ── 内容区 ── */
-  .main { flex: 1; min-width: 0; position: relative; }
   /* 背景宠物元素：一串爪印从右上角"走进"页面 + 一根小骨头 */
   .decor { position: absolute; pointer-events: none; user-select: none; color: rgba(255, 255, 255, .62); z-index: 0; }
   .decor.p1 { top: 10px;  right: 34px;  width: 30px; transform: rotate(-118deg); }
@@ -129,7 +28,7 @@
   .decor.bone { top: 108px; right: 48px; width: 46px; transform: rotate(24deg); color: rgba(255, 255, 255, .45); }
   @media (max-width: 900px) { .decor { display: none; } }
 
-  .wrap { padding: 26px 26px 30px 14px; position: relative; z-index: 1; }
+  .wrap { position: relative; z-index: 1; }   /* 让内容压在爪印装饰之上 */
   .page-h { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; padding: 2px 4px 4px; }
   .page-h h1 { font-size: 21px; font-weight: 700; color: var(--ink-strong); }
   .page-h .sub { font-size: 12.5px; color: #5d6d8c; }
@@ -158,11 +57,6 @@
   }
   .banner .bx:hover { color: #e0455a; background: #fdeef0; }
 
-  /* 悬浮模块卡：纯白、软投影、无边框 */
-  .card {
-    margin-top: 16px; background: #fff; border-radius: 16px;
-    box-shadow: 0 2px 6px rgba(61, 98, 176, .05), 0 12px 32px rgba(61, 98, 176, .10);
-  }
   .card-h {
     display: flex; align-items: center; gap: 10px;
     padding: 18px 22px 4px; font-size: 15px; font-weight: 700; color: var(--ink-strong);
@@ -227,13 +121,6 @@
   @keyframes shimmer { to { background-position: -200% 0; } }
 
   .pagefoot { text-align: center; font-size: 11.5px; color: #6d7d9c; padding: 26px 0 2px; letter-spacing: .06em; }
-
-  @media (max-width: 780px) {
-    .side { display: none; }
-    .top { padding: 0 14px; gap: 14px; }
-    .logo small { display: none; }
-    .wrap { padding: 16px 14px; }
-  }
 </style>
 </head>
 <body>
@@ -323,68 +210,11 @@
 </div>
 
 <script src="/icons.js"></script>
+<script src="/common.js"></script>
 <script>
-const API_BASE = '';
 let allModules = [];
 let favIds = [];        // 常用应用 id（用户自定义，服务端持久化）
 let userName = '';
-
-async function fetchJSON(url, options) {
-  const resp = await fetch(API_BASE + url, {
-    credentials: 'include',
-    headers: options?.body ? { 'Content-Type': 'application/json' } : undefined,
-    ...options,
-  });
-  if (!resp.ok) throw Object.assign(new Error('HTTP ' + resp.status), { status: resp.status });
-  return resp.json();
-}
-
-function esc(s) {
-  return String(s ?? '').replace(/[&<>"']/g, c =>
-    ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-}
-
-/* ── 用户区：头像 + 下拉菜单 + 退出登录（接入规范固定件）── */
-function renderUserArea(me) {
-  const btn = document.getElementById('avatarBtn');
-  const user = me?.user || {};
-  const name = user.display_name || user.displayName || user.email || '未登录';
-  userName = name === '未登录' ? '' : name;
-  const avatarUrl = user.avatar || user.avatar_url || '';
-
-  const setInitial = () => { btn.textContent = name === '未登录' ? '?' : name.slice(0, 1); };
-  if (avatarUrl) {
-    const img = new Image();
-    img.src = avatarUrl;
-    img.alt = name;
-    img.onerror = setInitial;           // 图片加载失败兜底成文字头像
-    img.onload = () => { btn.textContent = ''; btn.appendChild(img); };
-  } else {
-    setInitial();
-  }
-
-  document.getElementById('menuName').textContent = name;
-  document.getElementById('menuEmail').textContent = user.email || '';
-  document.getElementById('menuRoles').innerHTML =
-    (me?.roles || []).map(r => `<span class="role-chip">${esc(r)}</span>`).join('');
-
-  if ((me?.roles || []).includes('admin')) {
-    document.getElementById('sideAdminLink').style.display = 'flex';
-  }
-}
-
-const menu = document.getElementById('userMenu');
-document.getElementById('avatarBtn').addEventListener('click', () => menu.classList.toggle('open'));
-// 点击菜单外部自动收起（规范要求：capture 阶段 + composedPath 判断）
-document.addEventListener('click', (e) => {
-  if (!e.composedPath().includes(document.getElementById('userArea'))) {
-    menu.classList.remove('open');
-  }
-}, true);
-
-document.getElementById('logoutBtn').addEventListener('click', () => {
-  window.location.assign(`${API_BASE}/logout?returnTo=${encodeURIComponent(window.location.href)}`);
-});
 
 /* ── 视图（hash 路由）：#workbench 个人工作台 / #apps 全部应用 ── */
 function currentView() {
@@ -421,18 +251,6 @@ function svg16(inner) {
 function gradOf(m) {
   const i = allModules.findIndex(x => x.id === m.id);
   return GRADS[(i < 0 ? 0 : i) % GRADS.length];
-}
-
-/* 图标解析优先级：图片 URL > 内置图标名 > 旧数据 emoji/文本 > 模块名首字兜底 */
-function iconContent(m, size) {
-  const v = (m.icon || '').trim();
-  if (/^https?:\/\//.test(v)) {
-    return `<img src="${esc(v)}" alt="" onerror="this.style.display='none'">`;
-  }
-  const svg = window.portalIconSVG?.(v, size);
-  if (svg) return svg;
-  if (v) return esc(v);
-  return esc((m.name || '?').slice(0, 1));
 }
 
 function tileHTML(m) {
@@ -559,7 +377,10 @@ window.addEventListener('hashchange', render);
 (async function init() {
   try {
     const me = await fetchJSON('/api/me');
-    renderUserArea(me);
+    userName = renderUserArea(me);
+    if ((me?.roles || []).includes('admin')) {
+      document.getElementById('sideAdminLink').style.display = 'flex';
+    }
     const [mods, favs, annsResp] = await Promise.all([
       fetchJSON('/api/modules'),
       fetchJSON('/api/favorites').catch(() => ({ ids: [] })),

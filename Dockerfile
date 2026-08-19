@@ -25,6 +25,7 @@ RUN export HTTP_PROXY="${HTTP_PROXY:-$http_proxy}" \
     python -m pip install -i "${PIP_INDEX_URL}" -r requirements.txt
 
 COPY app /app/app
+COPY migrations /app/migrations
 COPY frontend /app/frontend
 
 COPY docker/entrypoint.sh /app/docker/entrypoint.sh
