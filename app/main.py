@@ -14,14 +14,16 @@ main.py — ZesTrade 企业门户后端
   PUT  /api/admin/modules/reorder   保存排序（admin）
   PUT  /api/admin/modules/{id}      修改模块（admin）
   DEL  /api/admin/modules/{id}      删除模块（admin）
-  GET  /api/admin/roles             已知角色列表（admin）
+  GET  /api/admin/roles             已知角色列表（admin，公告可见性用）
   POST /api/admin/roles             手动添加角色名（admin）
   DEL  /api/admin/roles/{name}      移除角色名（admin）
+  GET  /api/admin/permissions       RBAC 权限目录（admin，模块"可见权限"选择器数据源）
   GET  /logout                      登出：清缓存 + 跳 IdP 登出地址
   GET  /admin                       管理后台页面
   GET  /                            门户首页（静态）
 """
 
+import re
 from contextlib import asynccontextmanager
 from datetime import datetime
 from pathlib import Path
@@ -32,7 +34,7 @@ from fastapi.responses import FileResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field, field_validator
 
-from . import db
+from . import db, rbac_catalog
 from .auth import (
     AuthInfo,
     build_logout_url,
@@ -66,8 +68,10 @@ class ModuleIn(BaseModel):
     icon: str = Field(default="", max_length=200)
     url: str = Field(min_length=1, max_length=500)
     category: str = Field(default="", max_length=50)  # 空 = 门户归入"未分类"
-    # 空列表 = 所有人可见；单个角色名限 1-50 字符（与 RoleIn 一致），最多 50 个
-    visible_roles: list[Annotated[str, Field(min_length=1, max_length=50)]] = Field(
+    # 可见权限码（RBAC 唯一事实源，不建授权表）。必填、默认 []、不许 null——
+    # 区分"故意公开"与"忘了填"由前端强制二选一保证。空列表 = 所有登录用户可见；
+    # 元素为完整权限码 / 裸系统前缀 / "<system>:*" 系统通配（* 仅允许这一种写法）
+    requires: list[Annotated[str, Field(min_length=1, max_length=100)]] = Field(
         default_factory=list, max_length=50
     )
     enabled: bool = True
@@ -80,6 +84,15 @@ class ModuleIn(BaseModel):
         # 门户卡片是 <a href> 直接跳转，禁掉 javascript: 等伪协议
         if not v.lower().startswith(("http://", "https://")):
             raise ValueError("url must start with http:// or https://")
+        return v
+
+    @field_validator("requires")
+    @classmethod
+    def _requires_wildcard_form(cls, v: list[str]) -> list[str]:
+        # 通配只有第一段能带 *，即 "<system>:*" 一种写法
+        for code in v:
+            if "*" in code and not re.fullmatch(r"[^:*]+:\*", code):
+                raise ValueError(f"invalid wildcard in requires: {code!r}（仅支持 <system>:*）")
         return v
 
 
@@ -134,18 +147,40 @@ async def me(auth: AuthInfo = Depends(require_auth)):
     return {"user": auth.user, "roles": role_names, "permissions": auth.permissions}
 
 
+def _perm_matches(perm: str, req: str) -> bool:
+    """一个用户权限码是否命中一条 requires：完整码相等 / requires 是裸系统前缀 /
+    任一侧为 "<system>:*" 系统通配（写法合法性由 ModuleIn 校验保证）。"""
+    if perm == req:
+        return True
+    perm_sys = perm.split(":", 1)[0]
+    req_sys = req.split(":", 1)[0]
+    if perm_sys == req:                              # requires 写的是裸系统前缀
+        return True
+    if perm == f"{perm_sys}:*" and req_sys == perm_sys:   # 用户持系统通配
+        return True
+    if req == f"{req_sys}:*" and perm_sys == req_sys:     # requires 配了系统通配
+        return True
+    return False
+
+
+def module_visible(requires: list[str], permissions: list[str]) -> bool:
+    """requires 空 = 所有登录用户可见（RBAC 大量角色权限数为 0，此路径必须支持）；
+    持 "*" 可见全部；否则命中任一 requires 即可见。"""
+    if not requires:
+        return True
+    if "*" in permissions:
+        return True
+    return any(_perm_matches(p, r) for p in permissions for r in requires)
+
+
 @app.get("/api/modules")
 async def my_modules(auth: AuthInfo = Depends(require_auth)):
-    """真正的可见性过滤在这里（后端），前端只负责展示。"""
-    my_roles = {r.get("name") for r in auth.roles}
-    visible = [m for m in db.list_modules() if m["enabled"]]
-    # admin 在门户首页可见全部启用模块（便于总览自检）；其他角色按 visible_roles 过滤
-    if "admin" not in my_roles:
-        visible = [
-            m
-            for m in visible
-            if not m["visible_roles"] or my_roles & set(m["visible_roles"])
-        ]
+    """真正的可见性过滤在这里（后端），前端只负责展示。按权限码过滤；
+    admin 持 "*"（RBAC 目录里 admin 角色挂 platform 的 *），天然可见全部启用模块。"""
+    visible = [
+        m for m in db.list_modules()
+        if m["enabled"] and module_visible(m["requires"], auth.permissions)
+    ]
     return {"modules": visible}
 
 
@@ -192,7 +227,6 @@ async def admin_list_modules(auth: AuthInfo = Depends(require_role("admin"))):
 async def admin_create_module(
     body: ModuleIn, auth: AuthInfo = Depends(require_role("admin"))
 ):
-    db.record_roles(body.visible_roles, source="manual")
     created = db.create_module(body.model_dump())
     db.log_action(_actor(auth), "create", "module", created["id"], {"name": created["name"]})
     return created
@@ -212,7 +246,6 @@ async def admin_reorder_modules(
 async def admin_update_module(
     module_id: int, body: ModuleIn, auth: AuthInfo = Depends(require_role("admin"))
 ):
-    db.record_roles(body.visible_roles, source="manual")
     updated = db.update_module(module_id, body.model_dump())
     if not updated:
         raise HTTPException(status_code=404, detail="Module not found")
@@ -263,6 +296,15 @@ async def admin_delete_role(
     db.log_action(_actor(auth), "delete", "role", name,
                   {"removed_from_modules": [m["name"] for m in using]})
     return {"roles": db.list_known_roles()}
+
+
+@app.get("/api/admin/permissions")
+async def admin_permission_catalog(auth: AuthInfo = Depends(require_role("admin"))):
+    """RBAC 权限目录（服务端缓存 + ETag + 旧缓存兜底），模块"可见权限"选择器数据源。"""
+    try:
+        return await rbac_catalog.get_catalog()
+    except RuntimeError as exc:
+        raise HTTPException(status_code=503, detail=str(exc))
 
 
 # ── 横幅公告管理 ──

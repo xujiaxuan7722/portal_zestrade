@@ -17,9 +17,10 @@ app/
   main.py     路由：/api/me、/api/modules(角色过滤)、/api/favorites(常用应用)、
               /api/announcements(横幅公告)、/api/admin/*（模块/角色池/公告 CRUD + 审计）、/logout
   auth.py     RBAC/SSO 接入层：JWT 提取 → 换权限（缓存 5 分钟）→ require_auth/role/permission
+  rbac_catalog.py  RBAC 权限目录客户端（TTL+ETag 缓存、失败重试+旧缓存兜底、bypass 桩）
   db.py       PostgreSQL 数据层（psycopg3 + 连接池，DATABASE_URL 配置；生产漏配即拒绝启动）
 migrations/
-  001_baseline.sql  版本化表结构（应用启动时按编号顺序执行，schema_migrations 表记账）
+  *.sql       版本化表结构（应用启动时按编号顺序执行，schema_migrations 表记账）
 tests/
   test_*.py   pytest 单测（auth 缓存/fail-closed、角色可见性、迁移物料检查；不连数据库）
 frontend/
@@ -38,8 +39,8 @@ scripts/
 
 | 表 | 用途 | 要点 |
 |----|------|------|
-| `modules` | 应用模块 | `visible_roles TEXT[]`（空=所有人可见）；`status`（normal/maintenance，维护中门户显示角标）；`owner_name` 负责人；`created_at/updated_at` |
-| `known_roles` | 角色池 | 管理后台"可见角色"数据源；`source=seen` 为登录用户真实带回（保真），`manual` 为手动添加（未验证）；seen 可覆盖 manual |
+| `modules` | 应用模块 | `requires TEXT[]` 可见权限码（空=所有登录用户可见）；`visible_roles` 为角色制旧列（已停用，待迁移方案确认后删）；`status`（normal/maintenance）；`owner_name` 负责人 |
+| `known_roles` | 角色池 | 公告"可见角色"数据源（应用已改配权限码）；`source=seen` 为登录用户真实带回（保真），`manual` 为手动添加（未验证）；seen 可覆盖 manual |
 | `user_favorites` | 常用应用 | 个人工作台"我的常用"；外键 `ON DELETE CASCADE`，删模块自动清收藏 |
 | `announcements` | 横幅公告 | 门户顶部条；级别 info/warning、生效时间段（NULL=立即/长期）、可见角色复用模块规则 |
 | `audit_logs` | 管理操作审计 | 管理端所有写操作自动记录（谁/何时/对什么/做了什么，JSONB 详情）；管理后台「操作审计」卡片展示最近 100 条（`GET /api/admin/audit`） |
@@ -90,18 +91,23 @@ pip install -r requirements-dev.txt && pytest
   管理后台可自由输入新分类名，前端自动出现在侧边栏
 - 旧 SQLite 库的分类数据由 `scripts/migrate_sqlite_to_pg.py` 一并迁入
 
-## 角色可见性如何工作
+## 应用可见性如何工作（权限码制，20260818 起）
 
-- 模块的"可见角色"存 RBAC 中的**角色名字符串**，空 = 所有人可见
-- `GET /api/modules` 在**后端**按当前用户角色过滤（前端隐藏只是体验优化，不是安全边界）；
-  **admin 角色在首页可见全部启用模块**（便于总览自检），其他角色严格按可见角色过滤
-- 删除角色池中的角色时，若仍被模块引用，后端返回 409 + 引用清单，前端确认后
-  以 `?force=true` 重试——会先把该角色从相关模块的可见角色中移除再删，
-  避免模块变成"谁也看不见"
-- RBAC 暂无角色列表接口，管理后台下拉框数据来自本地 `known_roles` 角色池：
-  - 用户每次访问 `/api/me`，其角色名自动收录（source=seen）
-  - 管理员可在弹窗里手动添加（source=manual）
-  - 将来 RBAC 提供角色接口后，把 `db.list_known_roles()` 的调用处换成远程拉取即可
+- 模块配 `requires`（**权限码**数组，RBAC 唯一事实源，不建用户-应用授权表）：
+  - 空数组 = **所有登录用户可见**（RBAC 大量角色权限数为 0，此路径保证门户可先上线）
+  - 元素可以是完整权限码（`pm_system:read:sku`）、裸系统前缀（`pm_system`）、
+    系统通配（`pm_system:*`，`*` 只允许出现在这种写法里）；**命中任一即可见**
+  - 用户持 `*`（RBAC 目录里 admin 角色挂 platform 的 `*`）可见全部启用应用
+- `GET /api/modules` 在**后端**按 `/api/me` 换回的 `permissions[]` 过滤
+  （前端隐藏只是体验优化，不是安全边界）
+- 管理后台"可见权限"选择器的候选项来自 RBAC 权限目录
+  `GET /api/service/catalog`（Service Token 调用，服务端 TTL+ETag 缓存、
+  偶发 502 重试+旧缓存兜底；`AUTH_BYPASS` 本地开发返回内置演示目录）；
+  新建应用强制二选一：勾权限码，或勾"所有登录用户可见"
+- **横幅公告仍按角色过滤**（`visible_roles`，需求未要求改），角色池 `known_roles`
+  继续服务公告：`/api/me` 自动收录（seen）+ 公告弹窗手动添加（manual）
+- 管理后台门禁仍为 `require_role("admin")`；模块表的 `visible_roles` 旧列保留未删
+  ——这两点连同存量角色数据如何迁移，待需求方确认后处理
 
 ## Docker 部署（公司统一口径，照 pm_system 模式）
 
@@ -112,6 +118,7 @@ PostgreSQL / RBAC / oauth2-proxy 均为外部依赖，地址由 `.env` 注入。
 |------|------|
 | `Dockerfile` | 单镜像构建（python:3.13-slim + 依赖 + app/migrations/frontend） |
 | `docker-compose.deploy.yml` | 生产 compose，仅启动 app，端口只绑 127.0.0.1 |
+| `docker-compose.local.yml` | 本地/局域网演示 compose（绑 0.0.0.0 + AUTH_BYPASS，⚠ 仅限内网演示） |
 | `.env.docker.example` | 生产环境变量模板（`cp` 为 `.env` 后填写） |
 | `docker/entrypoint.sh` | 容器启动入口（uvicorn，`BACKEND_PORT` 默认 8200） |
 | `docker/docker-build.sh` | 构建镜像（透传代理变量与 `PIP_INDEX_URL`） |
@@ -121,6 +128,11 @@ PostgreSQL / RBAC / oauth2-proxy 均为外部依赖，地址由 `.env` 注入。
 服务器首次部署：clone 仓库 → `cp .env.docker.example .env` 并填写 →
 `./docker/docker-build.sh` → `./docker/docker-deploy.sh`。
 之后每次更新只需 `./docker/git-deploy.sh`。
+
+局域网演示（不经 oauth2-proxy，人人 admin，**只许内网用**）：
+`.env` 里只放 `DATABASE_URL`（勿放 RBAC 凭证，与 bypass 并存会拒绝启动），
+然后 `docker compose -f docker-compose.local.yml up -d`，
+同事用 `http://<本机IP>:8200` 访问。
 
 ## 上线清单（按顺序）
 

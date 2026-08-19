@@ -7,9 +7,10 @@ db.py — PostgreSQL 数据层（psycopg3 + 连接池）
 表结构版本化：migrations/*.sql 按文件名顺序执行，schema_migrations 表记录已执行版本
 （应用启动时自动跑）。改表 = 新增编号递增的 SQL 文件，勿改已执行过的文件。
 
-五张表（完整 DDL 见 migrations/001_baseline.sql，设计说明见 README「数据结构」）：
-  modules         门户展示的应用模块（可见角色 TEXT[]、负责人、维护状态、时间戳）
-  known_roles     已知角色名池：管理后台"可见角色"下拉框的数据源。
+五张表（完整 DDL 见 migrations/*.sql，设计说明见 README「数据结构」）：
+  modules         门户展示的应用模块（可见权限码 requires TEXT[]、负责人、维护状态；
+                  visible_roles 为角色制旧列，已停用、待迁移方案确认后删除）
+  known_roles     已知角色名池：公告"可见角色"选框的数据源（应用已改配权限码）。
                   RBAC 目前没有角色列表接口，采用"自动收录 + 手动添加"；
                   以后 RBAC 提供了角色接口，把 list_known_roles 换成远程调用即可
   user_favorites  用户常用应用（个人工作台"我的常用应用"，外键级联删除）
@@ -56,7 +57,7 @@ def pool() -> ConnectionPool:
 
 
 _SEED_MODULES = [
-    # (name, description, icon, url, category, visible_roles)
+    # (name, description, icon, url, category, requires)
     # icon 为 frontend/icons.js 内置图标名
     # 除领星/钉钉/RBAC 外，URL 为占位内网域名，真实地址确认后在管理后台修改即可
     ("ECSP 电商销售规划", "销售计划、市场与链接规划", "cart", "https://ecsp.zestrade.com", "电商运营", []),
@@ -68,7 +69,7 @@ _SEED_MODULES = [
     ("设计中心", "设计需求与素材管理", "palette", "https://design.zestrade.com", "产品设计", []),
     ("CRM 客户销售", "客户与销售机会管理", "users", "https://crm.zestrade.com", "客户销售", []),
     ("钉钉 OA", "审批、考勤与内部沟通", "chat", "https://oa.dingtalk.com", "协同办公", []),
-    ("RBAC 权限管理", "统一角色与权限配置后台", "shield", "https://rbac.bogoo.ai", "", ["admin"]),
+    ("RBAC 权限管理", "统一角色与权限配置后台", "shield", "https://rbac.bogoo.ai", "", ["admin:*"]),
 ]
 
 
@@ -104,18 +105,11 @@ def seed_if_empty() -> None:
         count = conn.execute("SELECT COUNT(*) AS c FROM modules").fetchone()["c"]
         if count:
             return
-        for i, (name, desc, icon, url, cat, roles) in enumerate(_SEED_MODULES):
+        for i, (name, desc, icon, url, cat, requires) in enumerate(_SEED_MODULES):
             conn.execute(
-                "INSERT INTO modules (name, description, icon, url, category, sort_order, visible_roles)"
+                "INSERT INTO modules (name, description, icon, url, category, sort_order, requires)"
                 " VALUES (%s, %s, %s, %s, %s, %s, %s)",
-                (name, desc, icon, url, cat, i, roles),
-            )
-        seed_roles = sorted({r for *_, roles in _SEED_MODULES for r in roles})
-        for r in seed_roles:
-            conn.execute(
-                "INSERT INTO known_roles (name, source) VALUES (%s, 'manual')"
-                " ON CONFLICT (name) DO NOTHING",
-                (r,),
+                (name, desc, icon, url, cat, i, requires),
             )
 
 
@@ -146,7 +140,7 @@ def _row_to_module(row: dict) -> dict:
         "url": row["url"],
         "category": row["category"],
         "sort_order": row["sort_order"],
-        "visible_roles": list(row["visible_roles"] or []),
+        "requires": list(row["requires"] or []),
         "enabled": row["enabled"],
         "status": row["status"],
         "owner_name": row["owner_name"],
@@ -171,14 +165,14 @@ def create_module(data: dict) -> dict:
     with pool().connection() as conn:
         row = conn.execute(
             "INSERT INTO modules (name, description, icon, url, category, sort_order,"
-            " visible_roles, enabled, status, owner_name)"
+            " requires, enabled, status, owner_name)"
             " VALUES (%s, %s, %s, %s, %s,"
             "   (SELECT COALESCE(MAX(sort_order), -1) + 1 FROM modules),"
             "   %s, %s, %s, %s)"
             " RETURNING *",
             (
                 data["name"], data["description"], data["icon"], data["url"],
-                data["category"], data["visible_roles"], data["enabled"],
+                data["category"], data["requires"], data["enabled"],
                 data["status"], data["owner_name"],
             ),
         ).fetchone()
@@ -189,11 +183,11 @@ def update_module(module_id: int, data: dict) -> dict | None:
     with pool().connection() as conn:
         row = conn.execute(
             "UPDATE modules SET name=%s, description=%s, icon=%s, url=%s, category=%s,"
-            " visible_roles=%s, enabled=%s, status=%s, owner_name=%s, updated_at=now()"
+            " requires=%s, enabled=%s, status=%s, owner_name=%s, updated_at=now()"
             " WHERE id=%s RETURNING *",
             (
                 data["name"], data["description"], data["icon"], data["url"],
-                data["category"], data["visible_roles"], data["enabled"],
+                data["category"], data["requires"], data["enabled"],
                 data["status"], data["owner_name"],
                 module_id,
             ),

@@ -124,6 +124,8 @@
   .role-del { background: none; border: none; color: #a4b0c8; font-size: 14px;
               padding: 0 0 0 2px; line-height: 1; cursor: pointer; }
   .role-del:hover { color: var(--danger); }
+  .perm-group { margin-bottom: 10px; }
+  .perm-sys { font-size: 12px; font-weight: 700; color: #7787a3; margin-bottom: 6px; }
   .add-role { display: flex; gap: 8px; margin-top: 10px; }
   .add-role input { flex: 1; padding: 9px 13px; border-radius: 10px; font-size: 12.5px; font-family: inherit;
                     background: #f8fafd; border: 1.5px solid #e3eaf5; color: var(--ink);
@@ -208,7 +210,7 @@
             <tr>
               <th style="width:36px"></th><th style="width:44px">图标</th><th>名称 / 描述</th>
               <th style="width:120px">分类</th>
-              <th>跳转地址</th><th>可见角色</th><th style="width:76px">状态</th><th style="width:120px">操作</th>
+              <th>跳转地址</th><th>可见权限</th><th style="width:76px">状态</th><th style="width:120px">操作</th>
             </tr>
           </thead>
           <tbody id="tbody"></tbody>
@@ -310,13 +312,23 @@
       </div>
     </div>
     <div class="field">
-      <label>可见角色（不选 = 所有人可见）</label>
-      <div class="roles-box" id="rolesBox"></div>
-      <div class="add-role">
-        <input type="text" id="newRoleInput" placeholder="角色名需与 RBAC 中登记的完全一致">
-        <button class="btn" id="addRoleBtn">添加角色</button>
+      <label>可见性 *</label>
+      <label class="switch-row" style="margin-bottom:8px">
+        <input type="radio" name="visMode" id="visPublic" checked style="accent-color:var(--blue);width:16px;height:16px">
+        所有登录用户可见（RBAC 侧无需任何配置）
+      </label>
+      <label class="switch-row" style="margin-bottom:8px">
+        <input type="radio" name="visMode" id="visPerm" style="accent-color:var(--blue);width:16px;height:16px">
+        按权限码可见（命中任一即可见；持 * 的用户可见全部应用）
+      </label>
+      <div id="permPicker" hidden>
+        <div id="permGroups" style="margin-bottom:9px"></div>
+        <div class="add-role">
+          <input type="text" id="newPermInput" placeholder="手动输入：完整权限码 / 系统前缀 / <system>:*">
+          <button class="btn" id="addPermBtn">添加</button>
+        </div>
+        <div class="hint">目录来自 RBAC 权限目录接口；需要新权限码请联系 RBAC 维护者登记后刷新本页</div>
       </div>
-      <div class="hint">下拉角色池 = 登录用户自动收录 + 手动添加；RBAC 提供角色接口后可切换为动态拉取</div>
     </div>
     <div class="field switch-row">
       <input type="checkbox" id="fEnabled" checked style="accent-color:var(--blue);width:16px;height:16px">
@@ -367,6 +379,11 @@
     <div class="field">
       <label>可见角色（不选 = 所有人可见）</label>
       <div class="roles-box" id="annRolesBox"></div>
+      <div class="add-role">
+        <input type="text" id="newRoleInput" placeholder="角色名需与 RBAC 中登记的完全一致">
+        <button class="btn" id="addRoleBtn">添加角色</button>
+      </div>
+      <div class="hint">角色池 = 登录用户自动收录 + 手动添加；现仅用于公告可见性（应用已改配权限码）</div>
     </div>
     <div class="modal-actions">
       <button class="btn" id="annCancelBtn">取消</button>
@@ -398,9 +415,9 @@ function renderTable() {
   const tbody = document.getElementById('tbody');
   tbody.innerHTML = modules.map(m => {
     const icon = iconContent(m, 20);
-    const roles = m.visible_roles.length
-      ? m.visible_roles.map(r => `<span class="chip">${esc(r)}</span>`).join('')
-      : '<span class="chip all">所有人</span>';
+    const reqs = m.requires.length
+      ? m.requires.map(r => `<span class="chip">${esc(r)}</span>`).join('')
+      : '<span class="chip all">所有登录用户</span>';
     return `<tr class="row" draggable="true" data-id="${m.id}">
       <td><span class="drag-handle" title="拖拽排序">⠿</span></td>
       <td class="mod-icon">${icon}</td>
@@ -409,7 +426,7 @@ function renderTable() {
       <td>${m.category ? `<span class="chip">${esc(m.category)}</span>`
                        : '<span style="color:var(--dim);font-size:12px">未分类</span>'}</td>
       <td><div class="mod-url" title="${esc(m.url)}">${esc(m.url)}</div></td>
-      <td>${roles}</td>
+      <td>${reqs}</td>
       <td><span class="status-dot ${m.enabled ? '' : 'off'}">${m.enabled ? '启用' : '停用'}</span></td>
       <td><button class="row-btn" onclick="openEdit(${m.id})">编辑</button>
           <button class="row-btn del" onclick="removeModule(${m.id})">删除</button></td>
@@ -451,48 +468,54 @@ document.getElementById('saveOrderBtn').addEventListener('click', async () => {
   } catch (e) { toast('保存排序失败：' + e.message); }
 });
 
-/* ── 新增 / 编辑弹窗 ── */
-function renderRoleChecks(selected) {
-  const box = document.getElementById('rolesBox');
-  box.innerHTML = knownRoles.map(r => `
-    <label class="role-check">
-      <input type="checkbox" value="${esc(r.name)}" ${selected.includes(r.name) ? 'checked' : ''}>
-      ${esc(r.name)}
-      <button type="button" class="role-del" data-role="${esc(r.name)}" title="从角色池删除">×</button>
-    </label>`).join('') || '<span style="font-size:12px;color:var(--dim)">角色池为空，请在下方手动添加</span>';
+/* ── 新增 / 编辑弹窗：可见权限选择器（数据源 = RBAC 权限目录）── */
+let permCatalog = null;   // /api/admin/permissions 结果；null = 目录不可用（仍可手动输入）
+let permSelected = [];    // 编辑中的 requires
+
+function renderPermGroups() {
+  const box = document.getElementById('permGroups');
+  const perms = permCatalog?.permissions || [];
+  const bySys = {};
+  perms.forEach(p => { const s = p.system || '未分组'; (bySys[s] ??= []).push(p); });
+  const known = new Set(perms.map(p => p.code));
+  const custom = permSelected.filter(c => !known.has(c));   // 手动输入的前缀/通配等
+  const group = (title, inner) =>
+    `<div class="perm-group"><div class="perm-sys">${esc(title)}</div><div class="roles-box">${inner}</div></div>`;
+  let html = Object.entries(bySys).map(([sys, list]) => group(sys, list.map(p => `
+      <label class="role-check" title="${esc(p.description || '')}">
+        <input type="checkbox" value="${esc(p.code)}" ${permSelected.includes(p.code) ? 'checked' : ''}>
+        ${esc(p.code)}
+      </label>`).join(''))).join('');
+  if (custom.length) html += group('手动添加', custom.map(c => `
+      <label class="role-check"><input type="checkbox" value="${esc(c)}" checked> ${esc(c)}</label>`).join(''));
+  box.innerHTML = html ||
+    '<span style="font-size:12px;color:var(--dim)">RBAC 权限目录不可用，可在下方手动输入权限码</span>';
 }
 
-/* 从角色池删除：仍被模块引用时后端返回 409 + 引用清单，确认后 force 联动移除 */
-document.getElementById('rolesBox').addEventListener('click', (e) => {
-  const btn = e.target.closest('.role-del');
-  if (!btn) return;
-  e.preventDefault();               // 阻止 label 联动切换 checkbox
-  deleteRoleFromPool(btn.dataset.role);
+document.getElementById('permGroups').addEventListener('change', () => {
+  permSelected = [...document.querySelectorAll('#permGroups input:checked')].map(i => i.value);
+  renderPermGroups();   // 手动条目取消勾选即移除
 });
 
-async function deleteRoleFromPool(name) {
-  const doDelete = (force) => fetchJSON(
-    `/api/admin/roles/${encodeURIComponent(name)}${force ? '?force=true' : ''}`,
-    { method: 'DELETE' });
-  try {
-    let data;
-    try {
-      data = await doDelete(false);
-    } catch (err) {
-      const used = err.status === 409 && err.detail?.modules;
-      if (!used) throw err;
-      if (!confirm(`角色「${name}」仍被以下模块使用：\n${used.join('、')}\n\n` +
-                   '继续删除将同时把它从这些模块的"可见角色"中移除。确定？')) return;
-      data = await doDelete(true);
-      await loadModules();          // 模块的可见角色已被联动修改，刷新列表
-    }
-    const checked = [...document.querySelectorAll('#rolesBox input:checked')]
-      .map(i => i.value).filter(v => v !== name);
-    knownRoles = data.roles;
-    renderRoleChecks(checked);
-    toast(`已删除角色「${name}」`);
-  } catch (e2) { toast('删除角色失败：' + e2.message); }
+document.getElementById('addPermBtn').addEventListener('click', () => {
+  const input = document.getElementById('newPermInput');
+  const code = input.value.trim();
+  if (!code) return;
+  if (code.includes('*') && !/^[^:*]+:\*$/.test(code)) {
+    toast('通配只支持 <system>:* 写法'); return;
+  }
+  if (!permSelected.includes(code)) permSelected.push(code);
+  input.value = '';
+  renderPermGroups();
+});
+
+function setVisMode(mode) {
+  document.getElementById('visPublic').checked = mode === 'public';
+  document.getElementById('visPerm').checked = mode === 'perm';
+  document.getElementById('permPicker').hidden = mode !== 'perm';
 }
+document.getElementById('visPublic').addEventListener('change', () => setVisMode('public'));
+document.getElementById('visPerm').addEventListener('change', () => setVisMode('perm'));
 
 /* 图标选择网格：点选内置图标；再点一次取消；输入框仍可填 URL/emoji */
 function renderIconGrid() {
@@ -545,7 +568,9 @@ function openModal(title, m) {
   document.getElementById('fEnabled').checked = m ? m.enabled : true;
   renderIconGrid();
   renderCatChips();
-  renderRoleChecks(m?.visible_roles || []);
+  permSelected = [...(m?.requires || [])];
+  setVisMode(permSelected.length ? 'perm' : 'public');
+  renderPermGroups();
   document.getElementById('overlay').classList.add('open');
 }
 
@@ -561,19 +586,6 @@ document.getElementById('addBtn').addEventListener('click', () => {
 document.getElementById('cancelBtn').addEventListener('click', () =>
   document.getElementById('overlay').classList.remove('open'));
 
-document.getElementById('addRoleBtn').addEventListener('click', async () => {
-  const input = document.getElementById('newRoleInput');
-  const name = input.value.trim();
-  if (!name) return;
-  try {
-    const data = await fetchJSON('/api/admin/roles', { method: 'POST', body: JSON.stringify({ name }) });
-    knownRoles = data.roles;
-    const checked = [...document.querySelectorAll('#rolesBox input:checked')].map(i => i.value);
-    renderRoleChecks([...checked, name]);
-    input.value = '';
-  } catch (e) { toast('添加角色失败：' + e.message); }
-});
-
 document.getElementById('saveBtn').addEventListener('click', async () => {
   const body = {
     name: document.getElementById('fName').value.trim(),
@@ -581,12 +593,16 @@ document.getElementById('saveBtn').addEventListener('click', async () => {
     icon: document.getElementById('fIcon').value.trim(),
     category: document.getElementById('fCat').value.trim(),
     url: document.getElementById('fUrl').value.trim(),
-    visible_roles: [...document.querySelectorAll('#rolesBox input:checked')].map(i => i.value),
+    requires: document.getElementById('visPerm').checked ? permSelected : [],
     enabled: document.getElementById('fEnabled').checked,
     owner_name: document.getElementById('fOwner').value.trim(),
     status: document.getElementById('fStatus').value,
   };
   if (!body.name || !body.url) { toast('名称和跳转地址不能为空'); return; }
+  // 强制二选一：选了"按权限码"就必须真的配码，防止"忘了填"混进"故意公开"
+  if (document.getElementById('visPerm').checked && !body.requires.length) {
+    toast('已选"按权限码可见"但未勾选任何权限码；请勾选或改为"所有登录用户可见"'); return;
+  }
   try {
     if (editingId === null) {
       await fetchJSON('/api/admin/modules', { method: 'POST', body: JSON.stringify(body) });
@@ -659,8 +675,53 @@ function renderAnnRoles(selected) {
     <label class="role-check">
       <input type="checkbox" value="${esc(r.name)}" ${selected.includes(r.name) ? 'checked' : ''}>
       ${esc(r.name)}
-    </label>`).join('') || '<span style="font-size:12px;color:var(--dim)">角色池为空 = 只能发全员公告</span>';
+      <button type="button" class="role-del" data-role="${esc(r.name)}" title="从角色池删除">×</button>
+    </label>`).join('') || '<span style="font-size:12px;color:var(--dim)">角色池为空，请在下方手动添加</span>';
 }
+
+/* 角色池管理（现仅服务于公告可见性；应用已改配权限码） */
+document.getElementById('annRolesBox').addEventListener('click', (e) => {
+  const btn = e.target.closest('.role-del');
+  if (!btn) return;
+  e.preventDefault();               // 阻止 label 联动切换 checkbox
+  deleteRoleFromPool(btn.dataset.role);
+});
+
+async function deleteRoleFromPool(name) {
+  const doDelete = (force) => fetchJSON(
+    `/api/admin/roles/${encodeURIComponent(name)}${force ? '?force=true' : ''}`,
+    { method: 'DELETE' });
+  try {
+    let data;
+    try {
+      data = await doDelete(false);
+    } catch (err) {
+      const used = err.status === 409 && err.detail?.modules;
+      if (!used) throw err;
+      if (!confirm(`角色「${name}」仍被以下模块的旧角色配置引用：\n${used.join('、')}\n\n` +
+                   '继续删除将同时清掉这些旧配置。确定？')) return;
+      data = await doDelete(true);
+    }
+    const checked = [...document.querySelectorAll('#annRolesBox input:checked')]
+      .map(i => i.value).filter(v => v !== name);
+    knownRoles = data.roles;
+    renderAnnRoles(checked);
+    toast(`已删除角色「${name}」`);
+  } catch (e2) { toast('删除角色失败：' + e2.message); }
+}
+
+document.getElementById('addRoleBtn').addEventListener('click', async () => {
+  const input = document.getElementById('newRoleInput');
+  const name = input.value.trim();
+  if (!name) return;
+  try {
+    const data = await fetchJSON('/api/admin/roles', { method: 'POST', body: JSON.stringify({ name }) });
+    knownRoles = data.roles;
+    const checked = [...document.querySelectorAll('#annRolesBox input:checked')].map(i => i.value);
+    renderAnnRoles([...checked, name]);
+    input.value = '';
+  } catch (e) { toast('添加角色失败：' + e.message); }
+});
 
 function openAnnModal(title, a) {
   document.getElementById('annModalTitle').textContent = title;
@@ -773,6 +834,12 @@ async function loadModules() {
     document.getElementById('whoami').textContent =
       `${me.user?.display_name || me.user?.email || ''} · admin`;
     knownRoles = (await fetchJSON('/api/admin/roles')).roles;
+    try {
+      permCatalog = await fetchJSON('/api/admin/permissions');
+    } catch (e) {
+      permCatalog = null;   // 目录不可用不阻塞页面，选择器降级为纯手动输入
+      toast('RBAC 权限目录暂不可用：' + e.message);
+    }
     await loadModules();
     await loadAnns();
     await loadAudit();
