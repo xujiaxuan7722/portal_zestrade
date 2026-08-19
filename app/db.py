@@ -7,19 +7,16 @@ db.py — PostgreSQL 数据层（psycopg3 + 连接池）
 表结构版本化：migrations/*.sql 按文件名顺序执行，schema_migrations 表记录已执行版本
 （应用启动时自动跑）。改表 = 新增编号递增的 SQL 文件，勿改已执行过的文件。
 
-五张表（完整 DDL 见 migrations/*.sql，设计说明见 README「数据结构」）：
-  modules         门户展示的应用模块（可见权限码 requires TEXT[]、负责人、维护状态；
-                  visible_roles 为角色制旧列，已停用、待迁移方案确认后删除）
-  known_roles     已知角色名池：公告"可见角色"选框的数据源（应用已改配权限码）。
-                  RBAC 目前没有角色列表接口，采用"自动收录 + 手动添加"；
-                  以后 RBAC 提供了角色接口，把 list_known_roles 换成远程调用即可
+四张表（完整 DDL 见 migrations/*.sql，设计说明见 README「数据结构」）：
+  modules         门户展示的应用模块（可见权限码 requires TEXT[]、负责人、维护状态）
   user_favorites  用户常用应用（个人工作台"我的常用应用"，外键级联删除）
-  announcements   横幅公告（门户顶部条：维护通知/新系统上线等入口场景信息）
+  announcements   横幅公告（门户顶部条；可见性同应用，按权限码 requires 过滤）
   audit_logs      管理操作审计（谁在何时对什么做了什么）
+角色制残留（visible_roles 列、known_roles 表）已在 003 迁移中删除，
+可见性统一为权限码，RBAC 为唯一事实源。
 """
 
 import os
-import time
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Optional
@@ -211,86 +208,6 @@ def reorder_modules(ids: list[int]) -> None:
 
 
 # ============================================================
-# known_roles
-# ============================================================
-
-
-# /api/me 每次请求都会调 record_roles(seen)：TTL 内写过的角色名直接跳过，避免每个
-# 页面加载都写库。代价是 last_seen 精度降为 ≤5 分钟；进程内缓存，多 worker 各自独立。
-_ROLES_SEEN_TTL = 300
-_roles_seen_at: dict[str, float] = {}
-
-
-def record_roles(names: list[str], source: str = "seen") -> None:
-    """把出现过的角色名收录进池子（已存在则只刷新 last_seen；seen 可覆盖 manual 来源，
-    表示该角色已被真实用户带回、得到验证）。单条批量 upsert。"""
-    names = sorted({n.strip() for n in names if n and n.strip()})
-    if not names:
-        return
-    if source == "seen":
-        now = time.monotonic()
-        names = [
-            n for n in names
-            if (t := _roles_seen_at.get(n)) is None or now - t >= _ROLES_SEEN_TTL
-        ]
-        if not names:
-            return
-        with pool().connection() as conn:
-            conn.execute(
-                "INSERT INTO known_roles (name, source, last_seen)"
-                " SELECT unnest(%s::text[]), 'seen', now()"
-                " ON CONFLICT (name) DO UPDATE SET last_seen = now(), source = 'seen'",
-                (names,),
-            )
-        for n in names:
-            _roles_seen_at[n] = now
-    else:
-        with pool().connection() as conn:
-            conn.execute(
-                "INSERT INTO known_roles (name, source, last_seen)"
-                " SELECT unnest(%s::text[]), %s, now()"
-                " ON CONFLICT (name) DO UPDATE SET last_seen = now()",
-                (names, source),
-            )
-
-
-def list_known_roles() -> list[dict]:
-    with pool().connection() as conn:
-        rows = conn.execute("SELECT * FROM known_roles ORDER BY name").fetchall()
-    return [
-        {"name": r["name"], "source": r["source"], "last_seen": r["last_seen"].isoformat()}
-        for r in rows
-    ]
-
-
-def modules_using_role(name: str) -> list[dict]:
-    """仍在 visible_roles 里引用该角色的模块（删角色前的联动检查）。"""
-    with pool().connection() as conn:
-        rows = conn.execute(
-            "SELECT * FROM modules WHERE %s = ANY(visible_roles) ORDER BY sort_order, id",
-            (name,),
-        ).fetchall()
-    return [_row_to_module(r) for r in rows]
-
-
-def remove_role_from_modules(name: str) -> int:
-    """把角色名从所有模块的 visible_roles 中移除，返回受影响模块数。"""
-    with pool().connection() as conn:
-        cur = conn.execute(
-            "UPDATE modules SET visible_roles = array_remove(visible_roles, %s),"
-            " updated_at = now() WHERE %s = ANY(visible_roles)",
-            (name, name),
-        )
-    return cur.rowcount
-
-
-def delete_known_role(name: str) -> bool:
-    with pool().connection() as conn:
-        cur = conn.execute("DELETE FROM known_roles WHERE name = %s", (name,))
-    return cur.rowcount > 0
-
-
-# ============================================================
 # user_favorites
 # ============================================================
 
@@ -330,7 +247,7 @@ def _row_to_announcement(row: dict) -> dict:
         "level": row["level"],
         "starts_at": row["starts_at"].isoformat() if row["starts_at"] else None,
         "ends_at": row["ends_at"].isoformat() if row["ends_at"] else None,
-        "visible_roles": list(row["visible_roles"] or []),
+        "requires": list(row["requires"] or []),
         "enabled": row["enabled"],
     }
 
@@ -359,11 +276,11 @@ def list_active_announcements() -> list[dict]:
 def create_announcement(data: dict) -> dict:
     with pool().connection() as conn:
         row = conn.execute(
-            "INSERT INTO announcements (content, level, starts_at, ends_at, visible_roles, enabled)"
+            "INSERT INTO announcements (content, level, starts_at, ends_at, requires, enabled)"
             " VALUES (%s, %s, %s, %s, %s, %s) RETURNING *",
             (
                 data["content"], data["level"], data["starts_at"], data["ends_at"],
-                data["visible_roles"], data["enabled"],
+                data["requires"], data["enabled"],
             ),
         ).fetchone()
     return _row_to_announcement(row)
@@ -373,10 +290,10 @@ def update_announcement(ann_id: int, data: dict) -> dict | None:
     with pool().connection() as conn:
         row = conn.execute(
             "UPDATE announcements SET content=%s, level=%s, starts_at=%s, ends_at=%s,"
-            " visible_roles=%s, enabled=%s, updated_at=now() WHERE id=%s RETURNING *",
+            " requires=%s, enabled=%s, updated_at=now() WHERE id=%s RETURNING *",
             (
                 data["content"], data["level"], data["starts_at"], data["ends_at"],
-                data["visible_roles"], data["enabled"], ann_id,
+                data["requires"], data["enabled"], ann_id,
             ),
         ).fetchone()
     return _row_to_announcement(row) if row else None

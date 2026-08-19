@@ -3,21 +3,20 @@ main.py — ZesTrade 企业门户后端
 
 路由总览（/api/* 未声明依赖的路由不存在——默认拒绝由"每条路由都显式挂依赖"保证）：
   GET  /api/me                      当前用户信息（登录即可）
-  GET  /api/modules                 当前用户可见的模块列表（按角色过滤）
+  GET  /api/modules                 当前用户可见的模块列表（按权限码过滤）
   GET  /api/favorites               我的常用应用 id 列表（登录即可）
   PUT  /api/favorites               保存我的常用应用（整表替换，顺序即列表顺序）
-  GET  /api/announcements           当前生效的横幅公告（按角色过滤）
-  GET/POST/PUT/DEL /api/admin/announcements[/{id}]  公告管理（admin）
-  GET  /api/admin/audit             管理操作审计日志（admin）
-  GET  /api/admin/modules           全部模块（admin）
-  POST /api/admin/modules           新增模块（admin）
-  PUT  /api/admin/modules/reorder   保存排序（admin）
-  PUT  /api/admin/modules/{id}      修改模块（admin）
-  DEL  /api/admin/modules/{id}      删除模块（admin）
-  GET  /api/admin/roles             已知角色列表（admin，公告可见性用）
-  POST /api/admin/roles             手动添加角色名（admin）
-  DEL  /api/admin/roles/{name}      移除角色名（admin）
-  GET  /api/admin/permissions       RBAC 权限目录（admin，模块"可见权限"选择器数据源）
+  GET  /api/announcements           当前生效的横幅公告（按权限码过滤，规则同应用）
+  GET/POST/PUT/DEL /api/admin/announcements[/{id}]  公告管理
+  GET  /api/admin/audit             管理操作审计日志
+  GET  /api/admin/modules           全部模块
+  POST /api/admin/modules           新增模块
+  PUT  /api/admin/modules/reorder   保存排序
+  PUT  /api/admin/modules/{id}      修改模块
+  DEL  /api/admin/modules/{id}      删除模块
+  GET  /api/admin/permissions       RBAC 权限目录（"可见权限"选择器数据源）
+  /api/admin/* 门禁统一为 require_permission(PORTAL_MANAGE_PERMISSION)，
+  持 "*"（现 admin）或 portal:* 通配的用户天然通过
   GET  /logout                      登出：清缓存 + 跳 IdP 登出地址
   GET  /admin                       管理后台页面
   GET  /                            门户首页（静态）
@@ -42,11 +41,16 @@ from .auth import (
     close_http_client,
     extract_user_jwt,
     require_auth,
-    require_role,
+    require_permission,
     sanitize_return_to,
 )
 
 FRONTEND_DIR = Path(__file__).resolve().parent.parent / "frontend"
+
+# 门户后台管理门禁的权限码。RBAC 登记前依赖 has_permission 的通配即可生效：
+# 现 admin 角色持 "*" 天然通过；将来把此码挂给其他角色即可单独授权门户管理。
+# 前端同款常量在 frontend/common.js，改名需同步。
+PORTAL_MANAGE_PERMISSION = "portal:manage:console"
 
 
 @asynccontextmanager
@@ -89,11 +93,15 @@ class ModuleIn(BaseModel):
     @field_validator("requires")
     @classmethod
     def _requires_wildcard_form(cls, v: list[str]) -> list[str]:
-        # 通配只有第一段能带 *，即 "<system>:*" 一种写法
-        for code in v:
-            if "*" in code and not re.fullmatch(r"[^:*]+:\*", code):
-                raise ValueError(f"invalid wildcard in requires: {code!r}（仅支持 <system>:*）")
-        return v
+        return _validate_requires_wildcards(v)
+
+
+def _validate_requires_wildcards(v: list[str]) -> list[str]:
+    # 通配只有第一段能带 *，即 "<system>:*" 一种写法
+    for code in v:
+        if "*" in code and not re.fullmatch(r"[^:*]+:\*", code):
+            raise ValueError(f"invalid wildcard in requires: {code!r}（仅支持 <system>:*）")
+    return v
 
 
 class AnnouncementIn(BaseModel):
@@ -101,18 +109,20 @@ class AnnouncementIn(BaseModel):
     level: Literal["info", "warning"] = "info"
     starts_at: Optional[datetime] = None  # None = 立即生效
     ends_at: Optional[datetime] = None    # None = 长期有效
-    visible_roles: list[Annotated[str, Field(min_length=1, max_length=50)]] = Field(
+    # 可见性与应用同一套权限码规则（见 ModuleIn.requires）
+    requires: list[Annotated[str, Field(min_length=1, max_length=100)]] = Field(
         default_factory=list, max_length=50
     )
     enabled: bool = True
 
+    @field_validator("requires")
+    @classmethod
+    def _requires_wildcard_form(cls, v: list[str]) -> list[str]:
+        return _validate_requires_wildcards(v)
+
 
 class ReorderIn(BaseModel):
     ids: list[int]
-
-
-class RoleIn(BaseModel):
-    name: str = Field(min_length=1, max_length=50)
 
 
 class FavoritesIn(BaseModel):
@@ -142,8 +152,6 @@ def _actor(auth: AuthInfo) -> str:
 @app.get("/api/me")
 async def me(auth: AuthInfo = Depends(require_auth)):
     role_names = [r.get("name") for r in auth.roles if r.get("name")]
-    # 顺手把该用户的角色收录进已知角色池（管理后台下拉框数据源）
-    db.record_roles(role_names)
     return {"user": auth.user, "roles": role_names, "permissions": auth.permissions}
 
 
@@ -163,7 +171,7 @@ def _perm_matches(perm: str, req: str) -> bool:
     return False
 
 
-def module_visible(requires: list[str], permissions: list[str]) -> bool:
+def requires_visible(requires: list[str], permissions: list[str]) -> bool:
     """requires 空 = 所有登录用户可见（RBAC 大量角色权限数为 0，此路径必须支持）；
     持 "*" 可见全部；否则命中任一 requires 即可见。"""
     if not requires:
@@ -179,7 +187,7 @@ async def my_modules(auth: AuthInfo = Depends(require_auth)):
     admin 持 "*"（RBAC 目录里 admin 角色挂 platform 的 *），天然可见全部启用模块。"""
     visible = [
         m for m in db.list_modules()
-        if m["enabled"] and module_visible(m["requires"], auth.permissions)
+        if m["enabled"] and requires_visible(m["requires"], auth.permissions)
     ]
     return {"modules": visible}
 
@@ -202,30 +210,27 @@ async def save_favorites(body: FavoritesIn, auth: AuthInfo = Depends(require_aut
 
 @app.get("/api/announcements")
 async def my_announcements(auth: AuthInfo = Depends(require_auth)):
-    """当前生效的横幅公告；与模块相同的角色过滤规则（admin 全可见）。"""
-    my_roles = {r.get("name") for r in auth.roles}
-    active = db.list_active_announcements()
-    if "admin" not in my_roles:
-        active = [
-            a for a in active
-            if not a["visible_roles"] or my_roles & set(a["visible_roles"])
-        ]
+    """当前生效的横幅公告；与应用同一套权限码可见性规则。"""
+    active = [
+        a for a in db.list_active_announcements()
+        if requires_visible(a["requires"], auth.permissions)
+    ]
     return {"announcements": active}
 
 
 # ============================================================
-# 管理侧（全部 require_role("admin")）
+# 管理侧（全部 require_permission(PORTAL_MANAGE_PERMISSION)）
 # ============================================================
 
 
 @app.get("/api/admin/modules")
-async def admin_list_modules(auth: AuthInfo = Depends(require_role("admin"))):
+async def admin_list_modules(auth: AuthInfo = Depends(require_permission(PORTAL_MANAGE_PERMISSION))):
     return {"modules": db.list_modules()}
 
 
 @app.post("/api/admin/modules")
 async def admin_create_module(
-    body: ModuleIn, auth: AuthInfo = Depends(require_role("admin"))
+    body: ModuleIn, auth: AuthInfo = Depends(require_permission(PORTAL_MANAGE_PERMISSION))
 ):
     created = db.create_module(body.model_dump())
     db.log_action(_actor(auth), "create", "module", created["id"], {"name": created["name"]})
@@ -235,7 +240,7 @@ async def admin_create_module(
 # 注意：reorder 必须注册在 /{module_id} 之前，否则 "reorder" 会被当作路径参数
 @app.put("/api/admin/modules/reorder")
 async def admin_reorder_modules(
-    body: ReorderIn, auth: AuthInfo = Depends(require_role("admin"))
+    body: ReorderIn, auth: AuthInfo = Depends(require_permission(PORTAL_MANAGE_PERMISSION))
 ):
     db.reorder_modules(body.ids)
     db.log_action(_actor(auth), "reorder", "module", detail={"ids": body.ids})
@@ -244,7 +249,7 @@ async def admin_reorder_modules(
 
 @app.put("/api/admin/modules/{module_id}")
 async def admin_update_module(
-    module_id: int, body: ModuleIn, auth: AuthInfo = Depends(require_role("admin"))
+    module_id: int, body: ModuleIn, auth: AuthInfo = Depends(require_permission(PORTAL_MANAGE_PERMISSION))
 ):
     updated = db.update_module(module_id, body.model_dump())
     if not updated:
@@ -255,7 +260,7 @@ async def admin_update_module(
 
 @app.delete("/api/admin/modules/{module_id}")
 async def admin_delete_module(
-    module_id: int, auth: AuthInfo = Depends(require_role("admin"))
+    module_id: int, auth: AuthInfo = Depends(require_permission(PORTAL_MANAGE_PERMISSION))
 ):
     if not db.delete_module(module_id):
         raise HTTPException(status_code=404, detail="Module not found")
@@ -263,43 +268,8 @@ async def admin_delete_module(
     return {"ok": True}
 
 
-@app.get("/api/admin/roles")
-async def admin_list_roles(auth: AuthInfo = Depends(require_role("admin"))):
-    return {"roles": db.list_known_roles()}
-
-
-@app.post("/api/admin/roles")
-async def admin_add_role(
-    body: RoleIn, auth: AuthInfo = Depends(require_role("admin"))
-):
-    db.record_roles([body.name], source="manual")
-    db.log_action(_actor(auth), "create", "role", body.name)
-    return {"roles": db.list_known_roles()}
-
-
-@app.delete("/api/admin/roles/{name}")
-async def admin_delete_role(
-    name: str, force: bool = False, auth: AuthInfo = Depends(require_role("admin"))
-):
-    """删角色联动：仍被模块引用时返回 409 + 引用清单；force=true 时先从
-    这些模块的 visible_roles 中移除再删（避免模块变成"谁也看不见"）。"""
-    using = db.modules_using_role(name)
-    if using and not force:
-        raise HTTPException(
-            status_code=409,
-            detail={"message": "role in use", "modules": [m["name"] for m in using]},
-        )
-    if using:
-        db.remove_role_from_modules(name)
-    if not db.delete_known_role(name):
-        raise HTTPException(status_code=404, detail="Role not found")
-    db.log_action(_actor(auth), "delete", "role", name,
-                  {"removed_from_modules": [m["name"] for m in using]})
-    return {"roles": db.list_known_roles()}
-
-
 @app.get("/api/admin/permissions")
-async def admin_permission_catalog(auth: AuthInfo = Depends(require_role("admin"))):
+async def admin_permission_catalog(auth: AuthInfo = Depends(require_permission(PORTAL_MANAGE_PERMISSION))):
     """RBAC 权限目录（服务端缓存 + ETag + 旧缓存兜底），模块"可见权限"选择器数据源。"""
     try:
         return await rbac_catalog.get_catalog()
@@ -311,13 +281,13 @@ async def admin_permission_catalog(auth: AuthInfo = Depends(require_role("admin"
 
 
 @app.get("/api/admin/announcements")
-async def admin_list_announcements(auth: AuthInfo = Depends(require_role("admin"))):
+async def admin_list_announcements(auth: AuthInfo = Depends(require_permission(PORTAL_MANAGE_PERMISSION))):
     return {"announcements": db.list_announcements()}
 
 
 @app.post("/api/admin/announcements")
 async def admin_create_announcement(
-    body: AnnouncementIn, auth: AuthInfo = Depends(require_role("admin"))
+    body: AnnouncementIn, auth: AuthInfo = Depends(require_permission(PORTAL_MANAGE_PERMISSION))
 ):
     created = db.create_announcement(body.model_dump())
     db.log_action(_actor(auth), "create", "announcement", created["id"],
@@ -327,7 +297,7 @@ async def admin_create_announcement(
 
 @app.put("/api/admin/announcements/{ann_id}")
 async def admin_update_announcement(
-    ann_id: int, body: AnnouncementIn, auth: AuthInfo = Depends(require_role("admin"))
+    ann_id: int, body: AnnouncementIn, auth: AuthInfo = Depends(require_permission(PORTAL_MANAGE_PERMISSION))
 ):
     updated = db.update_announcement(ann_id, body.model_dump())
     if not updated:
@@ -339,7 +309,7 @@ async def admin_update_announcement(
 
 @app.delete("/api/admin/announcements/{ann_id}")
 async def admin_delete_announcement(
-    ann_id: int, auth: AuthInfo = Depends(require_role("admin"))
+    ann_id: int, auth: AuthInfo = Depends(require_permission(PORTAL_MANAGE_PERMISSION))
 ):
     if not db.delete_announcement(ann_id):
         raise HTTPException(status_code=404, detail="Announcement not found")
@@ -349,7 +319,7 @@ async def admin_delete_announcement(
 
 @app.get("/api/admin/audit")
 async def admin_audit_logs(
-    limit: int = 100, auth: AuthInfo = Depends(require_role("admin"))
+    limit: int = 100, auth: AuthInfo = Depends(require_permission(PORTAL_MANAGE_PERMISSION))
 ):
     return {"logs": db.list_audit_logs(min(max(limit, 1), 500))}
 

@@ -378,7 +378,7 @@ window.addEventListener('hashchange', render);
   try {
     const me = await fetchJSON('/api/me');
     userName = renderUserArea(me);
-    if ((me?.roles || []).includes('admin')) {
+    if (hasPerm(me?.permissions || [], PORTAL_MANAGE_PERMISSION)) {
       document.getElementById('sideAdminLink').style.display = 'flex';
     }
     const [mods, favs, annsResp] = await Promise.all([

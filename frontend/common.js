@@ -23,6 +23,17 @@ function esc(s) {
     ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 }
 
+/* 门户后台管理所需权限码（与后端 main.py 的 PORTAL_MANAGE_PERMISSION 保持一致，
+   改名需同步）。RBAC 登记该码前，靠 "*" 通配即可生效：现 admin 持 "*" 天然通过。 */
+const PORTAL_MANAGE_PERMISSION = 'portal:manage:console';
+
+/* 与后端 auth.has_permission 同款判定："*" 全通过，支持 <前缀>:* 通配。
+   仅用于界面显隐（体验优化）；真正的安全边界在后端逐路由门禁。 */
+function hasPerm(perms, required) {
+  if (perms.includes('*') || perms.includes(required)) return true;
+  return perms.includes(required.split(':')[0] + ':*');
+}
+
 /* 图标解析优先级：图片 URL > 内置图标名 > 旧数据 emoji/文本 > 模块名首字兜底 */
 function iconContent(m, size) {
   const v = (m.icon || '').trim();

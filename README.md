@@ -14,8 +14,8 @@
 ```
 app/
   __init__.py 统一日志配置（LOG_LEVEL 环境变量调级别，默认 INFO）
-  main.py     路由：/api/me、/api/modules(角色过滤)、/api/favorites(常用应用)、
-              /api/announcements(横幅公告)、/api/admin/*（模块/角色池/公告 CRUD + 审计）、/logout
+  main.py     路由：/api/me、/api/modules(权限码过滤)、/api/favorites(常用应用)、
+              /api/announcements(横幅公告)、/api/admin/*（模块/公告 CRUD + 权限目录 + 审计）、/logout
   auth.py     RBAC/SSO 接入层：JWT 提取 → 换权限（缓存 5 分钟）→ require_auth/role/permission
   rbac_catalog.py  RBAC 权限目录客户端（TTL+ETag 缓存、失败重试+旧缓存兜底、bypass 桩）
   db.py       PostgreSQL 数据层（psycopg3 + 连接池，DATABASE_URL 配置；生产漏配即拒绝启动）
@@ -39,10 +39,9 @@ scripts/
 
 | 表 | 用途 | 要点 |
 |----|------|------|
-| `modules` | 应用模块 | `requires TEXT[]` 可见权限码（空=所有登录用户可见）；`visible_roles` 为角色制旧列（已停用，待迁移方案确认后删）；`status`（normal/maintenance）；`owner_name` 负责人 |
-| `known_roles` | 角色池 | 公告"可见角色"数据源（应用已改配权限码）；`source=seen` 为登录用户真实带回（保真），`manual` 为手动添加（未验证）；seen 可覆盖 manual |
+| `modules` | 应用模块 | `requires TEXT[]` 可见权限码（空=所有登录用户可见）；`status`（normal/maintenance）；`owner_name` 负责人 |
 | `user_favorites` | 常用应用 | 个人工作台"我的常用"；外键 `ON DELETE CASCADE`，删模块自动清收藏 |
-| `announcements` | 横幅公告 | 门户顶部条；级别 info/warning、生效时间段（NULL=立即/长期）、可见角色复用模块规则 |
+| `announcements` | 横幅公告 | 门户顶部条；级别 info/warning、生效时间段（NULL=立即/长期）、可见性 `requires` 与应用同规则 |
 | `audit_logs` | 管理操作审计 | 管理端所有写操作自动记录（谁/何时/对什么/做了什么，JSONB 详情）；管理后台「操作审计」卡片展示最近 100 条（`GET /api/admin/audit`） |
 
 分类保持 `modules.category` 自由字符串（不单独建表）：管理后台输入即创建，规模小、交互已定型。
@@ -104,10 +103,13 @@ pip install -r requirements-dev.txt && pytest
   `GET /api/service/catalog`（Service Token 调用，服务端 TTL+ETag 缓存、
   偶发 502 重试+旧缓存兜底；`AUTH_BYPASS` 本地开发返回内置演示目录）；
   新建应用强制二选一：勾权限码，或勾"所有登录用户可见"
-- **横幅公告仍按角色过滤**（`visible_roles`，需求未要求改），角色池 `known_roles`
-  继续服务公告：`/api/me` 自动收录（seen）+ 公告弹窗手动添加（manual）
-- 管理后台门禁仍为 `require_role("admin")`；模块表的 `visible_roles` 旧列保留未删
-  ——这两点连同存量角色数据如何迁移，待需求方确认后处理
+- **横幅公告与应用同一套权限码规则**（`requires`，空=所有登录用户可见）
+- **管理后台门禁按权限码判定**：`require_permission("portal:manage:console")`
+  （常量 `PORTAL_MANAGE_PERMISSION`，前端同款在 common.js）。该码待 RBAC 登记，
+  登记前靠通配即可用：现 admin 角色持 `*` 天然通过；登记后可把门户管理权
+  单独授给非超管角色
+- 角色制已完全移除（003 迁移删掉 `visible_roles` 列与 `known_roles` 表），
+  可见性只有权限码一种模型
 
 ## Docker 部署（公司统一口径，照 pm_system 模式）
 
