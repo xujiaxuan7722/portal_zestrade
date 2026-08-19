@@ -136,8 +136,9 @@ PostgreSQL / RBAC / oauth2-proxy 均为外部依赖，地址由 `.env` 注入。
 
 ## 上线清单（按顺序）
 
-1. [ ] 向管理员申请 **Service Token**（CF Zero Trust），并在 rbac.bogoo.ai
-       对应 Application 的 Policy 中放行 → 填入 `RBAC_CLIENT_ID` / `RBAC_CLIENT_SECRET`
+1. [x] 向管理员申请 **Service Token**（CF Zero Trust），并在 rbac.bogoo.ai
+       对应 Application 的 Policy 中放行（2026-08-19 已到手并实测连通：catalog 接口 200 + ETag）；
+       凭证部署时填入服务器 `.env` 的 `RBAC_CLIENT_ID` / `RBAC_CLIENT_SECRET`，勿入 git
 2. [ ] 请 RBAC 管理员登记本业务权限码 / 确认 `admin` 角色分配
 3. [ ] 域名 `portal.zestrade.com` 接入 oauth2-proxy（Keycloak）保护
 4. [ ] **配置 `OAUTH2_PROXY_SIGN_OUT_URL`（必配）**，如
