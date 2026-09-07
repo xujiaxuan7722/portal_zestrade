@@ -1,13 +1,25 @@
 # ZesTrade 企业门户（portal.zestrade.com）
 
 公司内部应用导航门户：员工登录后看到自己有权访问的应用入口；管理员可在后台对模块做
-增删改、拖拽排序、按角色配置可见性。登录与权限完全依赖公司统一基础设施：
+增删改、拖拽排序、按权限码配置可见性。登录与权限完全依赖公司统一基础设施：
 
 - **SSO**：Keycloak（经 oauth2-proxy），本应用不做登录页
 - **RBAC**：统一权限服务 `rbac.bogoo.ai`，本应用不自己验 JWT / 管角色
 
 接入协议遵循公司《RBAC/SSO 接入规范》（rbac-sso-integration skill），
 `app/auth.py` 改自其 FastAPI 模板并按 Keycloak 链路启用。
+
+## 界面预览
+
+| 个人工作台（常用应用 + 全部应用） | 全部应用（按分类分组） |
+|---|---|
+| ![个人工作台](docs/screenshots/portal-workbench.png) | ![全部应用](docs/screenshots/portal-apps.png) |
+
+| 管理后台：模块表格 / 拖拽排序 / 可见权限 | 新增模块：可见性二选一 + 按系统分组的权限码选择器 |
+|---|---|
+| ![管理后台](docs/screenshots/admin-modules.png) | ![权限码选择器](docs/screenshots/admin-perm-picker.png) |
+
+截图取自本机局域网演示部署（`AUTH_BYPASS` 模式，`docker-compose.local.yml`）。
 
 ## 目录结构
 
@@ -22,17 +34,16 @@ app/
 migrations/
   *.sql       版本化表结构（应用启动时按编号顺序执行，schema_migrations 表记账）
 tests/
-  test_*.py   pytest 单测（auth 缓存/fail-closed、角色可见性、迁移物料检查；不连数据库）
+  test_*.py   pytest 单测（auth 缓存/fail-closed、权限码可见性、后台门禁、目录客户端、
+              迁移物料检查；不连数据库）
 frontend/
   index.html  门户（hash 路由双视图：#workbench 个人工作台=常用应用[星标自定义]+全部应用；
               #apps 全部应用=按分类分组的悬浮模块卡；横幅公告条；顶栏用户区）
-  admin.html  管理后台（与门户同款风格；模块表格/弹窗/拖拽排序/角色多选/分类
+  admin.html  管理后台（与门户同款风格；模块表格/弹窗/拖拽排序/权限码选择器/分类
               + 横幅公告管理 + 操作审计只读表格）
   common.css  两页共用样式（设计变量/顶栏/用户区固定件/侧边栏/卡片基础）
   common.js   两页共用脚本（fetchJSON/esc/iconContent/用户区固定件渲染与交互）
   icons.js    内置 SVG 图标库
-scripts/
-  migrate_sqlite_to_pg.py  旧 SQLite（portal.db）→ PostgreSQL 一次性迁移
 ```
 
 ## 数据结构（PostgreSQL）
@@ -51,16 +62,6 @@ scripts/
 编号递增的 SQL 文件**（如 `002_add_xxx.sql`），勿修改已执行过的文件；对已按旧方式
 建过表的库，基线迁移（全部 `IF NOT EXISTS`）会直接标记通过。
 
-### 从旧 SQLite 迁移
-
-```bash
-# 1. 建库（一次性，见 .env.example 注释）
-# 2. 迁移旧数据（保留 id/排序/收藏）：
-source .venv/bin/activate
-DATABASE_URL=postgresql://portal:portal@127.0.0.1:5432/portal \
-    python scripts/migrate_sqlite_to_pg.py    # PG 已有数据时加 --force 清空重导
-# 3. 确认后归档旧库：mv portal.db portal.db.bak
-```
 
 ## 本地开发
 
@@ -88,7 +89,6 @@ pip install -r requirements-dev.txt && pytest
   按分类分组：全部应用 + 各分类（含数量），数量按当前用户可见模块统计
 - 预置分类：电商运营 / 供应链生产 / 产品设计 / 客户销售 / 协同办公，
   管理后台可自由输入新分类名，前端自动出现在侧边栏
-- 旧 SQLite 库的分类数据由 `scripts/migrate_sqlite_to_pg.py` 一并迁入
 
 ## 应用可见性如何工作（权限码制，20260818 起）
 
@@ -120,7 +120,7 @@ PostgreSQL / RBAC / oauth2-proxy 均为外部依赖，地址由 `.env` 注入。
 |------|------|
 | `Dockerfile` | 单镜像构建（python:3.13-slim + 依赖 + app/migrations/frontend） |
 | `docker-compose.deploy.yml` | 生产 compose，仅启动 app，端口只绑 127.0.0.1 |
-| `docker-compose.local.yml` | 本地/局域网演示 compose（绑 0.0.0.0 + AUTH_BYPASS，⚠ 仅限内网演示） |
+| `docker-compose.local.yml` | 本地/局域网演示 compose（宿主网络 network_mode: host，可连宿主 127.0.0.1 的 PG；监听 0.0.0.0:8200 + AUTH_BYPASS，⚠ 仅限内网演示） |
 | `.env.docker.example` | 生产环境变量模板（`cp` 为 `.env` 后填写） |
 | `docker/entrypoint.sh` | 容器启动入口（uvicorn，`BACKEND_PORT` 默认 8200） |
 | `docker/docker-build.sh` | 构建镜像（透传代理变量与 `PIP_INDEX_URL`） |

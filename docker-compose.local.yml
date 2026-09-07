@@ -1,17 +1,20 @@
 # 本地/局域网演示部署（20260818 新需求任务三：局域网内可访问）
 #   docker compose -f docker-compose.local.yml up -d
-# 与生产的区别：端口绑 0.0.0.0 供局域网访问，并以 AUTH_BYPASS 演示身份运行
-# （不要在 .env 里配 RBAC 凭证，防呆会拒绝启动）。
+# 与生产的区别：以 AUTH_BYPASS 演示身份运行，并用宿主网络（network_mode: host）：
+#   - 容器直接复用宿主网卡，可连宿主上只监听 127.0.0.1 的 PostgreSQL
+#   - 应用监听 0.0.0.0:${BACKEND_PORT}，局域网同事用 http://<本机IP>:8200 访问
+#   （host 模式下 compose 的 ports 映射无效，故不写）
+# .env 只放 DATABASE_URL，不要配 RBAC 凭证（与 bypass 并存时防呆会拒绝启动）。
 # ⚠ 仅限内网演示：无认证、人人 admin。生产一律用 docker-compose.deploy.yml
 #   （只绑 127.0.0.1，必须经 oauth2-proxy）。
 services:
   app:
     image: ${APP_IMAGE:-portal-zestrade:latest}
+    container_name: portal-zestrade-local
     restart: unless-stopped
+    network_mode: host
     environment:
       AUTH_BYPASS: "true"
       DATABASE_URL: ${DATABASE_URL:?需要 DATABASE_URL（可写在 .env 里）}
       BACKEND_HOST: 0.0.0.0
       BACKEND_PORT: ${BACKEND_PORT:-8200}
-    ports:
-      - "${BACKEND_PORT:-8200}:${BACKEND_PORT:-8200}"
