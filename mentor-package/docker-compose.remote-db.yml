@@ -1,0 +1,17 @@
+# 试跑包·变体 B：不带数据库，直接连开发机上的 PostgreSQL（需同一局域网，开发机开机）
+#   docker load -i portal-zestrade.tar.gz
+#   docker compose -f docker-compose.remote-db.yml up -d
+#   浏览器打开 http://localhost:8200
+# 看到的数据与开发机演示环境完全同步（两边改动互相可见）。
+services:
+  app:
+    image: portal-zestrade:mentor
+    container_name: portal-zestrade-mentor
+    restart: unless-stopped
+    environment:
+      AUTH_BYPASS: "true"
+      DATABASE_URL: ${DATABASE_URL:-postgresql://portal:portal@192.168.66.112:5432/portal}
+      BACKEND_HOST: 0.0.0.0
+      BACKEND_PORT: "8200"
+    ports:
+      - "${HOST_PORT:-8200}:8200"

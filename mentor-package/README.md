@@ -7,7 +7,8 @@
 | 文件 | 作用 |
 |---|---|
 | `portal-zestrade.tar.gz` | 应用镜像（FastAPI + 前端静态文件 + 数据库迁移脚本）。**不要手动解压**，`docker load` 直接读取 |
-| `docker-compose.yml` | 一键启动：应用容器 + 自带 PostgreSQL 容器 |
+| `docker-compose.yml` | 方式 A 一键启动：应用容器 + 自带 PostgreSQL 容器 |
+| `docker-compose.remote-db.yml` | 方式 B：只起应用，连开发机 PostgreSQL |
 | `seed/portal.sql` | 演示数据（应用模块、自定义规则等），数据库首次启动自动导入 |
 | `README.md` | 本文件 |
 
@@ -21,6 +22,17 @@ docker compose up -d                      # 启动数据库 + 应用
 浏览器打开 <http://localhost:8200>（门户首页），<http://localhost:8200/admin>（管理后台）。
 
 8200 被占用时换端口：`HOST_PORT=8300 docker compose up -d`。
+
+## 方式 B：不起数据库，直接连开发机的 PostgreSQL
+
+同一局域网、开发机（192.168.66.112）开着时可用，数据与开发机演示环境实时同步：
+
+```bash
+docker load -i portal-zestrade.tar.gz
+docker compose -f docker-compose.remote-db.yml up -d
+```
+
+两种方式二选一即可；方式 A 自带数据库，离线可跑。
 
 ## 停止 / 重置
 
