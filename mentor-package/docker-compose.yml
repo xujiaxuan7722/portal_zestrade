@@ -1,0 +1,45 @@
+# ZesTrade 企业门户 — 试跑包（换一台装了 Docker 的机器即可跑起来）
+#   docker load -i portal-zestrade.tar.gz
+#   docker compose up -d
+#   浏览器打开 http://localhost:8200
+#
+# 与生产的区别：
+#   - 数据库用本 compose 自带的 PostgreSQL 容器，首次启动自动导入 seed/portal.sql
+#     （演示数据：应用模块、自定义规则等）；生产用外部 PostgreSQL，由 .env 注入 DATABASE_URL
+#   - AUTH_BYPASS=true：绕过公司统一登录，打开即"开发测试用户"(admin)；
+#     生产必须关闭，经 oauth2-proxy + Keycloak 登录，RBAC 决定可见性
+services:
+  db:
+    image: postgres:17-alpine
+    container_name: portal-zestrade-mentor-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: portal
+      POSTGRES_PASSWORD: portal
+      POSTGRES_DB: portal
+    volumes:
+      - ./seed:/docker-entrypoint-initdb.d:ro   # 仅首次初始化时执行
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U portal -d portal"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+
+  app:
+    image: portal-zestrade:mentor
+    container_name: portal-zestrade-mentor
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      AUTH_BYPASS: "true"
+      DATABASE_URL: postgresql://portal:portal@db:5432/portal
+      BACKEND_HOST: 0.0.0.0
+      BACKEND_PORT: "8200"
+    ports:
+      - "${HOST_PORT:-8200}:8200"
+
+volumes:
+  pgdata:

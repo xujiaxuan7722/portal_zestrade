@@ -1,0 +1,40 @@
+# ZesTrade 企业门户 · 试跑包
+
+换一台装了 Docker（含 compose 插件）的机器，三步跑起来，不依赖原开发机上的任何东西。
+
+## 包内文件
+
+| 文件 | 作用 |
+|---|---|
+| `portal-zestrade.tar.gz` | 应用镜像（FastAPI + 前端静态文件 + 数据库迁移脚本） |
+| `docker-compose.yml` | 一键启动：应用容器 + 自带 PostgreSQL 容器 |
+| `seed/portal.sql` | 演示数据（应用模块、自定义规则等），数据库首次启动自动导入 |
+| `README.md` | 本文件 |
+
+## 启动
+
+```bash
+docker load -i portal-zestrade.tar.gz     # 导入镜像，得到 portal-zestrade:mentor
+docker compose up -d                      # 启动数据库 + 应用
+```
+
+浏览器打开 <http://localhost:8200>（门户首页），<http://localhost:8200/admin>（管理后台）。
+
+8200 被占用时换端口：`HOST_PORT=8300 docker compose up -d`。
+
+## 停止 / 重置
+
+```bash
+docker compose down        # 停止，保留数据
+docker compose down -v     # 停止并清空数据库；下次 up 会重新导入 seed
+```
+
+## 说明
+
+- **演示模式**：`AUTH_BYPASS=true` 绕过了公司统一登录，打开即为"开发测试用户"（admin，全权限）。
+  正式上线时关闭此项，经 oauth2-proxy + Keycloak 登录，由 RBAC 决定每个人看到哪些应用。
+- **权限目录**：管理后台"可见性"里 RBAC 目录部分（pm_system / platform 分组）在演示模式下是内置样例，
+  接入公司 RBAC 后显示真实目录；"门户自定义规则"分组是门户自己存的。
+- **数据库**：演示用 compose 自带的 PostgreSQL；生产改为外部 PostgreSQL，连接串由 `.env` 的
+  `DATABASE_URL` 注入。表结构由应用启动时自动迁移。
+- 正式上线链路、上线清单见仓库 `README.md` 与 `docs/部署步骤.docx`。
