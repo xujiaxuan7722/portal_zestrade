@@ -6,7 +6,7 @@
 
 | 文件 | 作用 |
 |---|---|
-| `portal-zestrade.tar.gz` | 应用镜像（FastAPI + 前端静态文件 + 数据库迁移脚本） |
+| `portal-zestrade.tar.gz` | 应用镜像（FastAPI + 前端静态文件 + 数据库迁移脚本）。**不要手动解压**，`docker load` 直接读取 |
 | `docker-compose.yml` | 一键启动：应用容器 + 自带 PostgreSQL 容器 |
 | `seed/portal.sql` | 演示数据（应用模块、自定义规则等），数据库首次启动自动导入 |
 | `README.md` | 本文件 |
