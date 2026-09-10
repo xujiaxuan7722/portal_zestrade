@@ -123,11 +123,12 @@
   .role-check input { accent-color: var(--blue); }
   .perm-group { margin-bottom: 10px; }
   .perm-sys { font-size: 12px; font-weight: 700; color: #7787a3; margin-bottom: 6px; }
-  .perm-chip { display: inline-flex; align-items: stretch; }
-  .perm-chip .role-check { border-top-right-radius: 0; border-bottom-right-radius: 0; }
-  .perm-x { border: 1.5px solid #e3eaf5; border-left: 0; background: #fff; color: #7787a3; cursor: pointer;
-    padding: 0 9px; font-size: 14px; line-height: 1; border-radius: 0 999px 999px 0; font-family: inherit; }
-  .perm-x:hover { background: #fff1f0; color: #d4380d; border-color: #ffccc7; }
+  .role-check .perm-x { width: 16px; height: 16px; border-radius: 50%; border: 0; padding: 0; margin-left: 2px;
+    display: inline-flex; align-items: center; justify-content: center; cursor: pointer;
+    background: rgba(69,85,122,.12); color: inherit; font-size: 13px; line-height: 1; font-family: inherit;
+    transition: all .15s; }
+  .role-check:has(input:checked) .perm-x { background: rgba(37,99,235,.15); }
+  .role-check .perm-x:hover { background: #d4380d; color: #fff; }
   .add-role { display: flex; gap: 8px; margin-top: 10px; }
   .add-role input { flex: 1; padding: 9px 13px; border-radius: 10px; font-size: 12.5px; font-family: inherit;
                     background: #f8fafd; border: 1.5px solid #e3eaf5; color: var(--ink);
@@ -514,12 +515,10 @@ function createPermPicker(ids) {
     const group = (title, inner) =>
       `<div class="perm-group"><div class="perm-sys">${esc(title)}</div><div class="roles-box">${inner}</div></div>`;
     const chip = (code, checked, xTitle, xAttr, title = '') => `
-        <span class="perm-chip">
-          <label class="role-check" title="${esc(title)}">
-            <input type="checkbox" value="${esc(code)}" ${checked ? 'checked' : ''}> ${esc(code)}
-          </label>
+        <label class="role-check" title="${esc(title)}">
+          <input type="checkbox" value="${esc(code)}" ${checked ? 'checked' : ''}> ${esc(code)}
           <button type="button" class="perm-x" ${xAttr}="${esc(code)}" title="${esc(xTitle)}">×</button>
-        </span>`;
+        </label>`;
     let html = Object.entries(bySys).map(([sys, list]) => group(sys, list.map(p => `
         <label class="role-check" title="${esc(p.description || '')}">
           <input type="checkbox" value="${esc(p.code)}" ${selected.includes(p.code) ? 'checked' : ''}>
