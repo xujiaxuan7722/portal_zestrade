@@ -53,6 +53,7 @@ frontend/
 | `modules` | 应用模块 | `requires TEXT[]` 可见权限码（空=所有登录用户可见）；`status`（normal/maintenance）；`owner_name` 负责人 |
 | `user_favorites` | 常用应用 | 个人工作台"我的常用"；外键 `ON DELETE CASCADE`，删模块自动清收藏 |
 | `announcements` | 横幅公告 | 门户顶部条；级别 info/warning、生效时间段（NULL=立即/长期）、可见性 `requires` 与应用同规则 |
+| `custom_requires` | 门户自定义准入规则 | 管理员手填的 `requires` 写法（裸前缀 / `<system>:*` / RBAC 未登记的完整码），所有应用与公告选择器共用；删除时同步从引用它的 `requires` 移除；不产生权限，RBAC 仍是唯一事实源 |
 | `audit_logs` | 管理操作审计 | 管理端所有写操作自动记录（谁/何时/对什么/做了什么，JSONB 详情）；管理后台「操作审计」卡片展示最近 100 条（`GET /api/admin/audit`） |
 
 分类保持 `modules.category` 自由字符串（不单独建表）：管理后台输入即创建，规模小、交互已定型。
@@ -103,6 +104,12 @@ pip install -r requirements-dev.txt && pytest
   `GET /api/service/catalog`（Service Token 调用，服务端 TTL+ETag 缓存、
   偶发 502 重试+旧缓存兜底；`AUTH_BYPASS` 本地开发返回内置演示目录）；
   新建应用强制二选一：勾权限码，或勾"所有登录用户可见"
+- **门户自定义规则**（`custom_requires` 表，004 迁移）：目录里没有的写法——裸系统前缀、
+  `<system>:*` 通配、RBAC 尚未登记的完整码——在选择器里手动添加后**落库并全局复用**，
+  应用与公告的选择器都能看到、勾选，条目带 × 删除（删除会同步从引用它的应用/公告
+  `requires` 中移除，删除前提示引用数）。它只是 `requires` 的书写便利，**不产生权限**，
+  RBAC 仍是唯一事实源；某条码后来在 RBAC 登记了，列表接口自动把它归还目录
+  （`GET/POST /api/admin/custom-requires`、`DELETE /api/admin/custom-requires/{code}`）
 - **横幅公告与应用同一套权限码规则**（`requires`，空=所有登录用户可见）
 - **管理后台门禁按权限码判定**：`require_permission("portal:manage:console")`
   （常量 `PORTAL_MANAGE_PERMISSION`，前端同款在 common.js）。该码待 RBAC 登记，

@@ -7,11 +7,12 @@ db.py — PostgreSQL 数据层（psycopg3 + 连接池）
 表结构版本化：migrations/*.sql 按文件名顺序执行，schema_migrations 表记录已执行版本
 （应用启动时自动跑）。改表 = 新增编号递增的 SQL 文件，勿改已执行过的文件。
 
-四张表（完整 DDL 见 migrations/*.sql，设计说明见 README「数据结构」）：
+五张表（完整 DDL 见 migrations/*.sql，设计说明见 README「数据结构」）：
   modules         门户展示的应用模块（可见权限码 requires TEXT[]、负责人、维护状态）
   user_favorites  用户常用应用（个人工作台"我的常用应用"，外键级联删除）
   announcements   横幅公告（门户顶部条；可见性同应用，按权限码 requires 过滤）
   audit_logs      管理操作审计（谁在何时对什么做了什么）
+  custom_requires 门户自定义准入规则（手填的前缀/通配等，跨应用公告复用；004 迁移）
 角色制残留（visible_roles 列、known_roles 表）已在 003 迁移中删除，
 可见性统一为权限码，RBAC 为唯一事实源。
 """
@@ -303,6 +304,70 @@ def delete_announcement(ann_id: int) -> bool:
     with pool().connection() as conn:
         cur = conn.execute("DELETE FROM announcements WHERE id = %s", (ann_id,))
     return cur.rowcount > 0
+
+
+# ============================================================
+# custom_requires — 门户自定义准入规则（RBAC 仍是唯一事实源，见 004 迁移注释）
+# ============================================================
+
+
+def list_custom_requires() -> list[dict]:
+    """全部自定义规则，附各自被多少应用/公告引用（前端删除前提示用）。"""
+    with pool().connection() as conn:
+        rows = conn.execute(
+            "SELECT c.code, c.note, c.created_by, c.created_at,"
+            "  (SELECT count(*) FROM modules m WHERE c.code = ANY(m.requires)) AS module_refs,"
+            "  (SELECT count(*) FROM announcements a WHERE c.code = ANY(a.requires)) AS ann_refs"
+            " FROM custom_requires c ORDER BY c.created_at, c.code"
+        ).fetchall()
+    return [
+        {
+            "code": r["code"],
+            "note": r["note"],
+            "created_by": r["created_by"],
+            "created_at": r["created_at"].isoformat() if r["created_at"] else None,
+            "refs": {"modules": r["module_refs"], "announcements": r["ann_refs"]},
+        }
+        for r in rows
+    ]
+
+
+def add_custom_require(code: str, note: str = "", created_by: str = "") -> dict:
+    """幂等：已存在则原样返回（不覆盖备注）。"""
+    with pool().connection() as conn:
+        conn.execute(
+            "INSERT INTO custom_requires (code, note, created_by) VALUES (%s, %s, %s)"
+            " ON CONFLICT (code) DO NOTHING",
+            (code, note, created_by),
+        )
+    return next(c for c in list_custom_requires() if c["code"] == code)
+
+
+def retire_custom_require(code: str) -> None:
+    """该码已在 RBAC 目录登记：只从自定义表移除，不动引用它的应用/公告。"""
+    with pool().connection() as conn:
+        conn.execute("DELETE FROM custom_requires WHERE code = %s", (code,))
+
+
+def delete_custom_require(code: str) -> dict | None:
+    """删除规则并从所有应用/公告的 requires 中摘掉该码（同一事务）。
+    返回被清理的条数；规则不存在返回 None。"""
+    with pool().connection() as conn:
+        with conn.transaction():
+            cur = conn.execute("DELETE FROM custom_requires WHERE code = %s", (code,))
+            if cur.rowcount == 0:
+                return None
+            m = conn.execute(
+                "UPDATE modules SET requires = array_remove(requires, %s), updated_at = now()"
+                " WHERE %s = ANY(requires)",
+                (code, code),
+            ).rowcount
+            a = conn.execute(
+                "UPDATE announcements SET requires = array_remove(requires, %s), updated_at = now()"
+                " WHERE %s = ANY(requires)",
+                (code, code),
+            ).rowcount
+    return {"modules": m, "announcements": a}
 
 
 # ============================================================

@@ -123,6 +123,11 @@
   .role-check input { accent-color: var(--blue); }
   .perm-group { margin-bottom: 10px; }
   .perm-sys { font-size: 12px; font-weight: 700; color: #7787a3; margin-bottom: 6px; }
+  .perm-chip { display: inline-flex; align-items: stretch; }
+  .perm-chip .role-check { border-top-right-radius: 0; border-bottom-right-radius: 0; }
+  .perm-x { border: 1.5px solid #e3eaf5; border-left: 0; background: #fff; color: #7787a3; cursor: pointer;
+    padding: 0 9px; font-size: 14px; line-height: 1; border-radius: 0 999px 999px 0; font-family: inherit; }
+  .perm-x:hover { background: #fff1f0; color: #d4380d; border-color: #ffccc7; }
   .add-role { display: flex; gap: 8px; margin-top: 10px; }
   .add-role input { flex: 1; padding: 9px 13px; border-radius: 10px; font-size: 12.5px; font-family: inherit;
                     background: #f8fafd; border: 1.5px solid #e3eaf5; color: var(--ink);
@@ -324,7 +329,7 @@
           <input type="text" id="newPermInput" placeholder="手动输入：完整权限码 / 系统前缀 / <system>:*">
           <button class="btn" id="addPermBtn">添加</button>
         </div>
-        <div class="hint">目录来自 RBAC 权限目录接口；需要新权限码请联系 RBAC 维护者登记后刷新本页</div>
+        <div class="hint">目录来自 RBAC 权限目录接口（每次打开实时拉取）；手动添加的条目为门户自定义规则，所有应用与公告共用，点 × 删除（会同步从引用它的应用/公告中移除）</div>
       </div>
     </div>
     <div class="field switch-row">
@@ -475,6 +480,17 @@ document.getElementById('saveOrderBtn').addEventListener('click', async () => {
 
 /* ── 可见权限选择器（数据源 = RBAC 权限目录）：模块弹窗与公告弹窗各一个实例 ── */
 let permCatalog = null;   // /api/admin/permissions 结果；null = 目录不可用（仍可手动输入）
+let customRequires = [];  // /api/admin/custom-requires 结果：门户自定义规则，所有选择器共用
+const permPickers = [];   // 已创建的选择器，自定义规则增删后统一重绘
+
+async function loadCustomRequires() {
+  try {
+    customRequires = (await fetchJSON('/api/admin/custom-requires')).items;
+  } catch (e) {
+    customRequires = [];
+    toast('自定义规则加载失败：' + e.message);
+  }
+}
 
 function createPermPicker(ids) {
   const els = {
@@ -492,30 +508,83 @@ function createPermPicker(ids) {
     const bySys = {};
     perms.forEach(p => { const s = p.system || '未分组'; (bySys[s] ??= []).push(p); });
     const known = new Set(perms.map(p => p.code));
-    const custom = selected.filter(c => !known.has(c));   // 手动输入的前缀/通配等
+    const customCodes = new Set(customRequires.map(c => c.code));
+    // 已保存在本条 requires 里、但既不在 RBAC 目录也不在自定义规则里的码（历史数据 / RBAC 已删）
+    const orphan = selected.filter(c => !known.has(c) && !customCodes.has(c));
     const group = (title, inner) =>
       `<div class="perm-group"><div class="perm-sys">${esc(title)}</div><div class="roles-box">${inner}</div></div>`;
+    const chip = (code, checked, xTitle, xAttr, title = '') => `
+        <span class="perm-chip">
+          <label class="role-check" title="${esc(title)}">
+            <input type="checkbox" value="${esc(code)}" ${checked ? 'checked' : ''}> ${esc(code)}
+          </label>
+          <button type="button" class="perm-x" ${xAttr}="${esc(code)}" title="${esc(xTitle)}">×</button>
+        </span>`;
     let html = Object.entries(bySys).map(([sys, list]) => group(sys, list.map(p => `
         <label class="role-check" title="${esc(p.description || '')}">
           <input type="checkbox" value="${esc(p.code)}" ${selected.includes(p.code) ? 'checked' : ''}>
           ${esc(p.code)}
         </label>`).join(''))).join('');
-    if (custom.length) html += group('手动添加', custom.map(c => `
-        <label class="role-check"><input type="checkbox" value="${esc(c)}" checked> ${esc(c)}</label>`).join(''));
+    if (customRequires.length) html += group('门户自定义规则（所有应用/公告共用）', customRequires.map(c =>
+      chip(c.code, selected.includes(c.code), '删除此自定义规则', 'data-del-custom', c.note || '')).join(''));
+    if (orphan.length) html += group('本条已保存但不在目录中', orphan.map(c =>
+      chip(c, true, '仅从本条可见性中移除', 'data-del-orphan', 'RBAC 目录与自定义规则中均无此码')).join(''));
     els.groups.innerHTML = html ||
       '<span style="font-size:12px;color:var(--dim)">RBAC 权限目录不可用，可在下方手动输入权限码</span>';
   }
 
   els.groups.addEventListener('change', () => {
     selected = [...els.groups.querySelectorAll('input:checked')].map(i => i.value);
-    render();   // 手动条目取消勾选即移除
+    render();
   });
 
-  els.addBtn.addEventListener('click', () => {
+  els.groups.addEventListener('click', async (e) => {
+    const btn = e.target.closest('button.perm-x');
+    if (!btn) return;
+    e.preventDefault();
+    const orphanCode = btn.dataset.delOrphan;
+    if (orphanCode !== undefined) {   // 只影响本条，不碰任何持久数据
+      selected = selected.filter(c => c !== orphanCode);
+      render();
+      return;
+    }
+    const code = btn.dataset.delCustom;
+    const item = customRequires.find(c => c.code === code);
+    const refs = item?.refs || { modules: 0, announcements: 0 };
+    const where = [];
+    if (refs.modules) where.push(`${refs.modules} 个应用`);
+    if (refs.announcements) where.push(`${refs.announcements} 条公告`);
+    const msg = `删除自定义规则「${code}」？` +
+      (where.length ? `\n它会同时从 ${where.join('、')} 的可见性中移除。` : '\n当前没有应用或公告引用它。');
+    if (!confirm(msg)) return;
+    try {
+      await fetchJSON('/api/admin/custom-requires/' + encodeURIComponent(code), { method: 'DELETE' });
+    } catch (err) {
+      toast('删除失败：' + (err.detail || err.message)); return;
+    }
+    await loadCustomRequires();
+    permPickers.forEach(p => p.dropCode(code));   // 两个选择器都摘掉
+    // 服务端已从引用它的应用/公告里移除，刷新列表让表格与数据一致
+    try { await loadModules(); await loadAnns(); } catch {}
+    toast('已删除自定义规则 ' + code);
+  });
+
+  els.addBtn.addEventListener('click', async () => {
     const code = els.input.value.trim();
     if (!code) return;
     if (code.includes('*') && !/^[^:*]+:\*$/.test(code)) {
       toast('通配只支持 <system>:* 写法'); return;
+    }
+    const known = new Set((permCatalog?.permissions || []).map(p => p.code));
+    if (!known.has(code) && !customRequires.some(c => c.code === code)) {
+      // 新自定义规则：落库，所有应用/公告的选择器都能看到
+      try {
+        await fetchJSON('/api/admin/custom-requires', { method: 'POST', body: JSON.stringify({ code }) });
+        await loadCustomRequires();
+        permPickers.forEach(p => p.refresh());
+      } catch (err) {
+        toast((err.detail || err.message)); if (err.status !== 400) return;   // 400 = 已在 RBAC 目录，直接勾选
+      }
     }
     if (!selected.includes(code)) selected.push(code);
     els.input.value = '';
@@ -530,11 +599,15 @@ function createPermPicker(ids) {
   els.pub.addEventListener('change', () => setMode('public'));
   els.perm.addEventListener('change', () => setMode('perm'));
 
-  return {
+  const api = {
     open(requires) { selected = [...(requires || [])]; setMode(selected.length ? 'perm' : 'public'); render(); },
     value() { return els.perm.checked ? [...selected] : []; },
     permMode() { return els.perm.checked; },
+    refresh() { render(); },
+    dropCode(code) { selected = selected.filter(c => c !== code); render(); },
   };
+  permPickers.push(api);
+  return api;
 }
 
 const modulePerms = createPermPicker({
@@ -818,6 +891,7 @@ async function loadModules() {
       permCatalog = null;   // 目录不可用不阻塞页面，选择器降级为纯手动输入
       toast('RBAC 权限目录暂不可用：' + e.message);
     }
+    await loadCustomRequires();
     await loadModules();
     await loadAnns();
     await loadAudit();

@@ -15,6 +15,8 @@ main.py — ZesTrade 企业门户后端
   PUT  /api/admin/modules/{id}      修改模块
   DEL  /api/admin/modules/{id}      删除模块
   GET  /api/admin/permissions       RBAC 权限目录（"可见权限"选择器数据源）
+  GET/POST /api/admin/custom-requires        门户自定义准入规则（跨应用/公告复用的手填条目）
+  DELETE   /api/admin/custom-requires/{code} 删除并从所有应用/公告 requires 同步移除
   /api/admin/* 门禁统一为 require_permission(PORTAL_MANAGE_PERMISSION)，
   持 "*"（现 admin）或 portal:* 通配的用户天然通过
   GET  /logout                      登出：清缓存 + 跳 IdP 登出地址
@@ -119,6 +121,20 @@ class AnnouncementIn(BaseModel):
     @classmethod
     def _requires_wildcard_form(cls, v: list[str]) -> list[str]:
         return _validate_requires_wildcards(v)
+
+
+class CustomRequireIn(BaseModel):
+    """门户自定义准入规则（跨应用/公告复用的手填 requires 条目）。"""
+    code: str = Field(min_length=1, max_length=100)
+    note: str = Field(default="", max_length=100)
+
+    @field_validator("code")
+    @classmethod
+    def _code_form(cls, v: str) -> str:
+        v = v.strip()
+        if not v or any(ch.isspace() for ch in v):
+            raise ValueError("权限码不能为空或含空白")
+        return _validate_requires_wildcards([v])[0]
 
 
 class ReorderIn(BaseModel):
@@ -275,6 +291,62 @@ async def admin_permission_catalog(auth: AuthInfo = Depends(require_permission(P
         return await rbac_catalog.get_catalog()
     except RuntimeError as exc:
         raise HTTPException(status_code=503, detail=str(exc))
+
+
+# ── 门户自定义准入规则 ──
+# RBAC 仍是唯一事实源：这里只维护管理员手填的 requires 写法（裸前缀 / <system>:* /
+# RBAC 尚未登记的完整码），供所有应用与公告的可见性选择器共用；不产生任何权限。
+
+
+async def _catalog_codes() -> set[str] | None:
+    """RBAC 目录里的完整码集合；目录不可用返回 None（不阻塞自定义规则的增删）。"""
+    try:
+        cat = await rbac_catalog.get_catalog()
+    except RuntimeError:
+        return None
+    return {p.get("code") for p in (cat or {}).get("permissions", []) if p.get("code")}
+
+
+@app.get("/api/admin/custom-requires")
+async def admin_list_custom_requires(
+    auth: AuthInfo = Depends(require_permission(PORTAL_MANAGE_PERMISSION)),
+):
+    """自定义规则列表。顺带对账：某条码已在 RBAC 目录登记，则自动归还目录
+    （从自定义表删除，不动引用它的应用/公告——码本身仍有效）。"""
+    items = db.list_custom_requires()
+    known = await _catalog_codes()
+    if known:
+        merged = [c for c in items if c["code"] in known]
+        for c in merged:
+            db.retire_custom_require(c["code"])
+        items = [c for c in items if c["code"] not in known]
+    return {"items": items}
+
+
+@app.post("/api/admin/custom-requires")
+async def admin_add_custom_require(
+    body: CustomRequireIn, auth: AuthInfo = Depends(require_permission(PORTAL_MANAGE_PERMISSION))
+):
+    known = await _catalog_codes()
+    if known and body.code in known:
+        raise HTTPException(
+            status_code=400, detail=f"{body.code} 已在 RBAC 权限目录中，直接勾选即可，无需自定义"
+        )
+    item = db.add_custom_require(body.code, body.note, _actor(auth))
+    db.log_action(_actor(auth), "create", "custom_require", detail={"code": body.code})
+    return item
+
+
+@app.delete("/api/admin/custom-requires/{code:path}")
+async def admin_delete_custom_require(
+    code: str, auth: AuthInfo = Depends(require_permission(PORTAL_MANAGE_PERMISSION))
+):
+    """删除规则，并从所有引用它的应用/公告 requires 中同步移除。"""
+    removed = db.delete_custom_require(code)
+    if removed is None:
+        raise HTTPException(status_code=404, detail="Custom require not found")
+    db.log_action(_actor(auth), "delete", "custom_require", detail={"code": code, "removed_from": removed})
+    return {"ok": True, "removed_from": removed}
 
 
 # ── 横幅公告管理 ──
