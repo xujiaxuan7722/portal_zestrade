@@ -33,14 +33,6 @@
   .page-h { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; padding: 2px 4px 4px; }
   .page-h h1 { font-size: 23px; font-weight: 700; color: var(--ink-strong); }
   .page-h .sub { font-size: 14.5px; color: #5d6d8c; }
-  /* 品牌徽章：小巧的白色胶囊 */
-  .brand-pill {
-    margin-left: auto; display: inline-flex; align-items: center; gap: 7px;
-    background: #fff; border-radius: 999px; padding: 7px 15px;
-    font-size: 12.5px; font-weight: 700; letter-spacing: .22em; color: #3d5480;
-    box-shadow: 0 4px 14px rgba(61, 98, 176, .12);
-  }
-  .brand-pill svg { width: 13px; color: var(--blue); }
 
   /* 横幅公告条 */
   .banners { display: flex; flex-direction: column; gap: 8px; margin-top: 14px; }
@@ -130,7 +122,7 @@
 <header class="top">
   <div class="logo">
     <span class="mk">吉</span>
-    <div><b>吉信德企业门户</b><small class="fit" aria-label="SUNNYPET · PETSFIT"><svg aria-hidden="true"><text x="0" y="10" textLength="100%" lengthAdjust="spacing">SUNNYPET · PETSFIT</text></svg></small></div>
+    <div><b>吉信德企业门户</b></div>
   </div>
   <div class="search">🔍<input id="q" placeholder="搜索应用名称…"></div>
   <div class="top-right">
@@ -196,7 +188,6 @@
       <div class="page-h">
         <h1 id="greetTitle">个人工作台</h1>
         <span class="sub" id="cntLine">按你的权限展示</span>
-        <span class="brand-pill"><svg viewBox="0 0 100 100"><use href="#pawprint"/></svg>I share, enjoy and love.</span>
       </div>
 
       <div class="banners" id="banners"></div>
