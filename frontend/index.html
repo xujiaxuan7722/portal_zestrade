@@ -80,8 +80,12 @@
     display: grid; place-items: center; flex: none;
   }
   .acard .ic img { width: 26px; height: 26px; object-fit: contain; }
-  .acard b { display: block; font-size: 16.5px; font-weight: 650; color: var(--ink-strong); padding-right: 20px; }
-  .acard span { display: block; font-size: 14px; color: var(--dim); margin-top: 5px; line-height: 1.5; }
+  /* 名称与介绍都只占一行，超长截断显示省略号，悬停显示全文；卡片网格宽度不变 */
+  .acard > div { flex: 1; min-width: 0; }
+  .acard b { display: block; font-size: 16.5px; font-weight: 650; color: var(--ink-strong); padding-right: 20px;
+             white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .acard span { display: block; font-size: 14px; color: var(--dim); margin-top: 5px; line-height: 1.5;
+                white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .acard .maint {
     display: inline-block; font-style: normal; font-size: 12.5px; font-weight: 600;
     color: #c2701a; background: #fff3e0; border-radius: 999px; padding: 2px 8px;
@@ -256,7 +260,7 @@ function tileHTML(m) {
     ? `<span class="owner-line">负责人：${esc(m.owner_name)}</span>` : '';
   return `<a class="acard" href="${esc(m.url)}" target="_blank" rel="noopener">
     <span class="ic" style="background:${gradOf(m)}">${icon}</span>
-    <div><b>${esc(m.name)}${maint}</b><span>${esc(m.description)}</span>${owner}</div>
+    <div><b title="${esc(m.name)}">${esc(m.name)}${maint}</b><span title="${esc(m.description)}">${esc(m.description)}</span>${owner}</div>
     <button class="fav-btn ${faved ? 'faved' : ''}" data-fav="${m.id}"
       title="${faved ? '取消常用' : '设为常用'}">${faved ? '★' : '☆'}</button>
     <span class="ar">→</span>

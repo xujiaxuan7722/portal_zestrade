@@ -41,7 +41,6 @@ svg { flex: none; }
   background: linear-gradient(140deg, #5793f8, #2e6ae8); display: grid; place-items: center;
 }
 .logo b { font-size: 19px; letter-spacing: .02em; color: var(--ink-strong); }
-.logo small { display: block; font-size: 12.5px; color: var(--dim); letter-spacing: .12em; margin-top: 2px; font-weight: 400; }
 
 /* 用户区（规范固定件：头像 + 下拉菜单 + 退出登录） */
 .user-area { position: relative; }
