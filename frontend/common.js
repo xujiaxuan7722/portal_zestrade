@@ -86,3 +86,27 @@ function renderUserArea(me) {
     window.location.assign(`${API_BASE}/logout?returnTo=${encodeURIComponent(window.location.href)}`);
   });
 })();
+
+/* 未登录（401）时的"重新登录"入口：门户不做登录页，登录由 oauth2-proxy 发起，
+   /oauth2/start 是它的标准入口，rd 为登录完成后跳回的地址。 */
+function reloginUrl() {
+  return `/oauth2/start?rd=${encodeURIComponent(window.location.href)}`;
+}
+
+/* 演示模式（AUTH_BYPASS）下点"退出登录"会被后端送回 /?demo_logout=1：
+   没有登录态可退，这里给个提示并清掉参数，免得用户以为退出坏了。 */
+(function demoLogoutNotice() {
+  const url = new URL(window.location.href);
+  if (url.searchParams.get('demo_logout') !== '1') return;
+  url.searchParams.delete('demo_logout');
+  history.replaceState(null, '', url.pathname + url.search + url.hash);
+  const bar = document.createElement('div');
+  bar.id = 'demoNotice';
+  bar.style.cssText = 'position:fixed;left:50%;top:14px;transform:translateX(-50%);z-index:9999;'
+    + 'background:#1f2937;color:#fff;padding:10px 16px;border-radius:8px;font-size:13px;'
+    + 'box-shadow:0 4px 16px rgba(0,0,0,.25);max-width:92vw;line-height:1.6';
+  bar.textContent = '当前是演示模式（AUTH_BYPASS），没有登录态，退出登录与切换用户不生效；'
+    + '接入 oauth2-proxy + Keycloak 后才可用。';
+  document.body.appendChild(bar);
+  setTimeout(() => bar.remove(), 8000);
+})();

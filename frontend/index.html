@@ -111,6 +111,7 @@
 
   .empty { padding: 40px 0 46px; text-align: center; color: var(--dim); font-size: 13px; line-height: 1.8; }
   .empty .big { font-size: 36px; margin-bottom: 10px; }
+  .empty .relogin { display: inline-block; padding: 8px 18px; border-radius: 8px; background: var(--blue, #2563eb); color: #fff; text-decoration: none; font-size: 13px; }
 
   /* 骨架屏 */
   .skeleton {
@@ -393,10 +394,13 @@ window.addEventListener('hashchange', render);
     render();
   } catch (err) {
     renderUserArea(null);
+    const relogin = err.status === 401
+      ? `<p style="margin-top:14px"><a class="relogin" href="${esc(reloginUrl())}">重新登录</a></p>`
+      : '';
     document.getElementById('panels').innerHTML =
       `<div class="card"><div class="empty"><div class="big">🔒</div>
        未登录或认证服务不可用（${esc(err.message)}）<br>
-       正常情况下会先被统一登录页拦截，请检查部署链路或联系管理员</div></div>`;
+       正常情况下会先被统一登录页拦截，请检查部署链路或联系管理员${relogin}</div></div>`;
   }
 })();
 </script>

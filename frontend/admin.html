@@ -271,6 +271,11 @@
   <p>你没有管理员权限，无法访问此页面</p>
   <p style="margin-top:10px"><a href="/">返回门户首页</a></p>
 </div>
+<div class="forbidden" id="unauth" hidden>
+  <div class="big">🔒</div>
+  <p>未登录或认证服务不可用，正常情况下会先被统一登录页拦截</p>
+  <p style="margin-top:10px"><a id="reloginLink" href="#">重新登录</a> · <a href="/">返回门户首页</a></p>
+</div>
 
 <!-- 新增/编辑弹窗 -->
 <div class="overlay" id="overlay">
@@ -896,8 +901,14 @@ async function loadModules() {
     await loadAudit();
     document.getElementById('main').hidden = false;
   } catch (err) {
-    // 后端接口本身逐条挂了 require_permission 门禁，这里只是给个友好页面
-    document.getElementById('forbidden').hidden = false;
+    // 后端接口本身逐条挂了 require_permission 门禁，这里只是给个友好页面：
+    // 拿不到 /api/me（未登录，401）与拿到了但无权限（403）分开提示
+    if (!me) {
+      document.getElementById('reloginLink').href = reloginUrl();
+      document.getElementById('unauth').hidden = false;
+    } else {
+      document.getElementById('forbidden').hidden = false;
+    }
   }
 })();
 </script>

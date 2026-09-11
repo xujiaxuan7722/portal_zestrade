@@ -19,7 +19,7 @@ main.py — ZesTrade 企业门户后端
   DELETE   /api/admin/custom-requires/{code} 删除并从所有应用/公告 requires 同步移除
   /api/admin/* 门禁统一为 require_permission(PORTAL_MANAGE_PERMISSION)，
   持 "*"（现 admin）或 portal:* 通配的用户天然通过
-  GET  /logout                      登出：清缓存 + 跳 IdP 登出地址
+  GET  /logout                      登出：清缓存 + 跳 IdP 登出地址（bypass 演示模式回首页并提示）
   GET  /admin                       管理后台页面
   GET  /                            门户首页（静态）
 """
@@ -36,6 +36,7 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field, field_validator
 
 from . import db, rbac_catalog
+from . import auth as _auth
 from .auth import (
     AuthInfo,
     build_logout_url,
@@ -403,6 +404,10 @@ async def admin_audit_logs(
 
 @app.get("/logout")
 async def logout(request: Request, returnTo: Optional[str] = None):
+    if _auth.AUTH_BYPASS:
+        # 演示模式没有登录态可退：不跳 Keycloak（无 client_id 会被拒或退了个寂寞），
+        # 回首页并让前端提示"演示模式退出不生效"。切换用户只能改 AUTH_BYPASS_* 重启。
+        return RedirectResponse(url="/?demo_logout=1")
     jwt_token = extract_user_jwt(request)
     clear_auth_cache(jwt_token)
     # 防开放重定向：非站内地址的 returnTo 会被丢弃（登出仍生效）

@@ -6,6 +6,9 @@ __pycache__/
 # 本地数据与密钥（portal.db* 为已迁移归档的旧 SQLite 库，线上首次启动自动播种）
 portal.db*
 .env
+.env.*
+!.env.example
+!.env.docker.example
 
 # 公司内部文档（docx 等），不入库
 docs/*.docx

@@ -139,9 +139,12 @@ PostgreSQL / RBAC / oauth2-proxy 均为外部依赖，地址由 `.env` 注入。
 之后每次更新只需 `./docker/git-deploy.sh`。
 
 局域网演示（不经 oauth2-proxy，人人 admin，**只许内网用**）：
-`.env` 里只放 `DATABASE_URL`（勿放 RBAC 凭证，与 bypass 并存会拒绝启动），
-然后 `docker compose -f docker-compose.local.yml up -d`，
-同事用 `http://<本机IP>:8200` 访问。
+`.env.demo` 里只放 `DATABASE_URL`（勿放 RBAC 凭证，与 bypass 并存会拒绝启动），
+然后 `docker compose --env-file .env.demo -f docker-compose.local.yml up -d`，
+同事用 `http://<本机IP>:8200` 访问。根目录 `.env` 留给正式接入配置
+（含 RBAC 凭证，`docker-compose.deploy.yml` 读取），两份都已 gitignore。
+演示模式没有登录态：点"退出登录"只会回首页并提示，切换用户要改
+`AUTH_BYPASS_NAME` / `AUTH_BYPASS_ROLES` 重启容器。
 
 ## 上线清单（按顺序）
 
@@ -156,7 +159,7 @@ PostgreSQL / RBAC / oauth2-proxy 均为外部依赖，地址由 `.env` 注入。
        特殊部署才用 `KEYCLOAK_CLIENT_ID` 兜底直连登出
 5. [ ] Keycloak Client → "Valid post logout redirect URIs" 加入
        `https://portal.zestrade.com/*`（否则登出后无法跳回）
-6. [ ] **`AUTH_BYPASS=false`**（或不设）——未配 RBAC 凭证且未开 bypass 时
+6. [x] **`AUTH_BYPASS=false`**（或不设；2026-09-11 已在 `.env` 关闭并填入凭证）——未配 RBAC 凭证且未开 bypass 时
        所有请求 401，属预期的 fail-closed 行为；防呆：bypass 与 RBAC 凭证
        同时配置时应用直接拒绝启动
 7. [ ] 部署安全：应用端口只监听 `127.0.0.1`/内网，仅允许 oauth2-proxy 访问，
@@ -165,6 +168,7 @@ PostgreSQL / RBAC / oauth2-proxy 均为外部依赖，地址由 `.env` 注入。
        **不要连开发库**（含测试数据），空库首次启动自动播种；
        生产模式（未开 bypass）漏配 `DATABASE_URL` 时应用直接拒绝启动，不回落本地默认库
 8. [ ] 自检：浏览器直接访问 `/logout`，应回到统一登录页（proxy 会话已清）；
+       首页/后台在 401 时显示"重新登录"，跳 oauth2-proxy 的 `/oauth2/start?rd=<当前页>`；
        `returnTo` 只接受站内地址，外部地址会被丢弃；改角色后权限最多 5 分钟
        生效（重新登录立即生效），为预期行为
 

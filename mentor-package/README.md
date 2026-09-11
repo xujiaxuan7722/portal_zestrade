@@ -44,7 +44,11 @@ docker compose down -v     # 停止并清空数据库；下次 up 会重新导�
 ## 说明
 
 - **演示模式**：`AUTH_BYPASS=true` 绕过了公司统一登录，打开即为"开发测试用户"（admin，全权限）。
-  正式上线时关闭此项，经 oauth2-proxy + Keycloak 登录，由 RBAC 决定每个人看到哪些应用。
+  **没有登录态，所以"退出登录"不生效（只回首页提示）、不能切换用户、子系统链接仍会各自要求登录**；
+  这是演示模式的固有限制，不是故障。要模拟别的角色，改 compose 里的
+  `AUTH_BYPASS_NAME` / `AUTH_BYPASS_ROLES`（如 `finance`）后 `docker compose up -d` 重建即可。
+  正式接入：`AUTH_BYPASS=false` + 填 RBAC 凭证，并把门户挂到 oauth2-proxy + Keycloak 后面，
+  登录/退出/切换用户与子系统免登由 SSO 会话统一提供，RBAC 决定每个人看到哪些应用。
 - **权限目录**：管理后台"可见性"里 RBAC 目录部分（pm_system / platform 分组）在演示模式下是内置样例，
   接入公司 RBAC 后显示真实目录；"门户自定义规则"分组是门户自己存的。
 - **数据库**：演示用 compose 自带的 PostgreSQL；生产改为外部 PostgreSQL，连接串由 `.env` 的

@@ -1,10 +1,11 @@
 # 本地/局域网演示部署（20260818 新需求任务三：局域网内可访问）
-#   docker compose -f docker-compose.local.yml up -d
+#   docker compose --env-file .env.demo -f docker-compose.local.yml up -d
 # 与生产的区别：以 AUTH_BYPASS 演示身份运行，并用宿主网络（network_mode: host）：
 #   - 容器直接复用宿主网卡，可连宿主上只监听 127.0.0.1 的 PostgreSQL
 #   - 应用监听 0.0.0.0:${BACKEND_PORT}，局域网同事用 http://<本机IP>:8200 访问
 #   （host 模式下 compose 的 ports 映射无效，故不写）
-# .env 只放 DATABASE_URL，不要配 RBAC 凭证（与 bypass 并存时防呆会拒绝启动）。
+# .env.demo 只放 DATABASE_URL，不要配 RBAC 凭证（与 bypass 并存时防呆会拒绝启动）；
+# 根目录 .env 是正式接入配置（含 RBAC 凭证），只给 docker-compose.deploy.yml 用。
 # ⚠ 仅限内网演示：无认证、人人 admin。生产一律用 docker-compose.deploy.yml
 #   （只绑 127.0.0.1，必须经 oauth2-proxy）。
 services:
