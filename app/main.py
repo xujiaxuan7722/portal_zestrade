@@ -24,6 +24,7 @@ main.py — ZesTrade 企业门户后端
   GET  /                            门户首页（静态）
 """
 
+import hashlib
 import re
 from contextlib import asynccontextmanager
 from datetime import datetime, timedelta
@@ -31,7 +32,7 @@ from pathlib import Path
 from typing import Annotated, Literal, Optional
 
 from fastapi import Depends, FastAPI, HTTPException, Request
-from fastapi.responses import FileResponse, RedirectResponse
+from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field, field_validator
 
@@ -446,9 +447,36 @@ async def logout(request: Request, returnTo: Optional[str] = None):
     return RedirectResponse(url=build_logout_url(request, return_to=return_to))
 
 
+# 静态资源版本号：取 css/js 内容哈希，页面里的引用写成 /common.css?v=<hash>。
+# 资源一变地址就变，浏览器不可能再用旧缓存（no-cache 头只管"下次取"，管不了已存的旧副本）。
+_ASSET_FILES = ("common.css", "common.js", "icons.js")
+
+
+def _asset_version() -> str:
+    h = hashlib.sha1()
+    for name in _ASSET_FILES:
+        h.update((FRONTEND_DIR / name).read_bytes())
+    return h.hexdigest()[:10]
+
+
+ASSET_VERSION = _asset_version()
+
+
+def _page(name: str) -> HTMLResponse:
+    html = (FRONTEND_DIR / name).read_text(encoding="utf-8")
+    for asset in _ASSET_FILES:
+        html = html.replace(f'"/{asset}"', f'"/{asset}?v={ASSET_VERSION}"')
+    return HTMLResponse(html)
+
+
+@app.get("/")
+async def index_page():
+    return _page("index.html")
+
+
 @app.get("/admin")
 async def admin_page():
-    return FileResponse(FRONTEND_DIR / "admin.html")
+    return _page("admin.html")
 
 
 @app.middleware("http")

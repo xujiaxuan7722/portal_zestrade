@@ -60,3 +60,14 @@ def test_static_pages_are_no_cache(client):
         assert resp.status_code == 200, path
         assert resp.headers.get("cache-control") == "no-cache", path
     assert "cache-control" not in client.get("/api/me").headers
+
+
+def test_pages_link_versioned_assets(client):
+    """页面里的 css/js 引用带内容哈希版本号：资源一改地址就变，旧缓存自然失效。"""
+    from app import main
+    for path in ("/", "/admin"):
+        html = client.get(path).text
+        for asset in ("common.css", "common.js", "icons.js"):
+            assert f'"/{asset}?v={main.ASSET_VERSION}"' in html, (path, asset)
+            assert f'"/{asset}"' not in html, (path, asset)
+    assert client.get(f"/common.css?v={main.ASSET_VERSION}").status_code == 200
