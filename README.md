@@ -3,7 +3,11 @@
 公司内部应用导航门户：员工登录后看到自己有权访问的应用入口；管理员可在后台对模块做
 增删改、拖拽排序、按权限码配置可见性。登录与权限完全依赖公司统一基础设施：
 
-- **SSO**：Keycloak（经 oauth2-proxy），本应用不做登录页
+- **SSO**：Keycloak（经公司共享 oauth2-proxy `sso.zestrade.com`），本应用不做登录页。
+  令牌两条来路：代理层塞的 `X-Auth-Request-Access-Token` 头；或没有该头时，门户拿浏览器带来的
+  oauth2-proxy 会话 cookie（作用域 `.zestrade.com`）去 `{OAUTH2_PROXY_URL}/oauth2/auth` 换令牌
+  （202 → 响应头里的令牌，缓存 60s）。没会话时页面路由直接跳 `/oauth2/start?rd=<当前页>` 登录，
+  API 返回 401。所以只要域名指到本应用，不需要代理层额外挂登录中间件
 - **RBAC**：统一权限服务 `rbac.bogoo.ai`，本应用不自己验 JWT / 管角色
 
 接入协议遵循公司《RBAC/SSO 接入规范》（rbac-sso-integration skill），
@@ -27,7 +31,7 @@
 app/
   __init__.py 统一日志配置（LOG_LEVEL 环境变量调级别，默认 INFO）
   main.py     路由：/api/me、/api/modules(权限码过滤)、/api/favorites(常用应用)、
-              /api/announcements(横幅公告)、/api/admin/*（模块/公告 CRUD + 权限目录 + 审计）、/logout
+              /api/announcements(横幅公告)、/api/admin/*（模块/公告 CRUD + 权限目录 + 审计）、/login、/logout
   auth.py     RBAC/SSO 接入层：JWT 提取 → 换权限（缓存 5 分钟）→ require_auth/role/permission
   rbac_catalog.py  RBAC 权限目录客户端（TTL+ETag 缓存、失败重试+旧缓存兜底、bypass 桩）
   db.py       PostgreSQL 数据层（psycopg3 + 连接池，DATABASE_URL 配置；生产漏配即拒绝启动）
@@ -152,7 +156,9 @@ PostgreSQL / RBAC / oauth2-proxy 均为外部依赖，地址由 `.env` 注入。
        对应 Application 的 Policy 中放行（2026-08-19 已到手并实测连通：catalog 接口 200 + ETag）；
        凭证部署时填入服务器 `.env` 的 `RBAC_CLIENT_ID` / `RBAC_CLIENT_SECRET`，勿入 git
 2. [ ] 请 RBAC 管理员登记本业务权限码 / 确认 `admin` 角色分配
-3. [ ] 域名 `portal.zestrade.com` 接入 oauth2-proxy（Keycloak）保护
+3. [x] 域名 `portal.zestrade.com` 指到本应用（2026-09-11 实测：公司代理纯转发到开发机 8201，登录由门户自己经
+       `OAUTH2_PROXY_URL=https://sso.zestrade.com` 完成：无会话跳 sso 登录，有会话换令牌 → RBAC 按 unionid 匹配；
+       钉钉扫码后 /api/me 200、权限过滤生效、后台门禁 403、登出跳 sso sign_out 均已跑通）
 4. [ ] **配置 `OAUTH2_PROXY_SIGN_OUT_URL`（必配）**，如
        `https://portal.zestrade.com/oauth2/sign_out`——只登出 Keycloak 不清
        oauth2-proxy 会话的话，用户刷新页面仍是登录态；未走 oauth2-proxy 的

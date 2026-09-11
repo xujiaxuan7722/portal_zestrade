@@ -47,7 +47,8 @@ docker compose -f docker-compose.prod.yml up -d
 ```
 
 应用只监听 127.0.0.1:8200，由现有反向代理把 portal.zestrade.com 转到这个端口。
-登录走 sso.zestrade.com 的共享 oauth2-proxy，与 pm / pf / crm 同一套，RBAC 按钉钉身份自动匹配，
+代理只需把域名转发到应用，不必挂登录中间件：门户自己经 sso.zestrade.com 的共享 oauth2-proxy 完成登录
+（无会话跳 sso，有会话拿 cookie 换令牌），RBAC 按钉钉身份自动匹配，
 不需要额外录入用户；管理后台只对持有 `*`（admin 角色）或 `portal:manage:console` 的人开放。
 自检：打开 https://portal.zestrade.com 应跳统一登录页；登录后点右上角"退出登录"应回到登录页。
 
