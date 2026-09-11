@@ -8,16 +8,16 @@
 <style>
   /* 页面特有样式；共用部分（变量/顶栏/用户区/侧边栏/卡片基础）见 common.css */
   .top-right { margin-left: auto; display: flex; align-items: center; gap: 16px; }
-  .whoami { font-size: 13px; color: var(--dim); }
+  .whoami { font-size: 15px; color: var(--dim); }
 
   .page-head { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; padding: 2px 4px 0; }
-  .page-head h1 { font-size: 21px; font-weight: 700; color: var(--ink-strong); }
-  .page-head p { color: #5d6d8c; font-size: 13px; margin-top: 6px; }
+  .page-head h1 { font-size: 23px; font-weight: 700; color: var(--ink-strong); }
+  .page-head p { color: #5d6d8c; font-size: 15px; margin-top: 6px; }
   .actions { display: flex; gap: 10px; }
 
   .btn {
     padding: 9px 18px; border-radius: 999px; border: none;
-    background: #fff; color: var(--ink); font-size: 13px; font-family: inherit;
+    background: #fff; color: var(--ink); font-size: 15px; font-family: inherit;
     box-shadow: 0 2px 10px rgba(61, 98, 176, .10); transition: all .18s;
   }
   .btn:hover { color: var(--blue); box-shadow: 0 4px 14px rgba(61, 98, 176, .16); }
@@ -30,22 +30,22 @@
   .card { overflow: hidden; }   /* 表格卡需要裁掉超出圆角的部分 */
   .tbl-wrap { overflow-x: auto; }
   table { width: 100%; border-collapse: collapse; }
-  th { text-align: left; font-size: 12.5px; color: #7787a3; font-weight: 500;
+  th { text-align: left; font-size: 14.5px; color: #7787a3; font-weight: 500;
        background: #f4f8fd; padding: 12px 16px; white-space: nowrap; }
-  td { padding: 15px 16px; font-size: 13.5px; border-top: 1px solid #f0f4fb; vertical-align: middle; }
+  td { padding: 15px 16px; font-size: 15.5px; border-top: 1px solid #f0f4fb; vertical-align: middle; }
   tr.row { transition: background .15s; background: #fff; }
   tr.row:hover { background: #f8fbff; }
   tr.row.dragging { opacity: .4; }
   tr.row.drag-over td { border-top: 2px solid var(--blue); }
-  .drag-handle { cursor: grab; color: #a4b0c8; user-select: none; font-size: 15px; padding: 4px; }
-  .mod-icon { font-size: 20px; color: #45557a; }
+  .drag-handle { cursor: grab; color: #a4b0c8; user-select: none; font-size: 17px; padding: 4px; }
+  .mod-icon { font-size: 22px; color: #45557a; }
   .mod-icon img { width: 22px; height: 22px; object-fit: contain; vertical-align: middle; }
   .mod-icon svg { vertical-align: middle; }
-  .mod-name { font-weight: 600; font-size: 14px; color: var(--ink-strong); }
-  .mod-url { color: var(--dim); font-size: 12.5px; max-width: 260px; overflow: hidden;
+  .mod-name { font-weight: 600; font-size: 16px; color: var(--ink-strong); }
+  .mod-url { color: var(--dim); font-size: 14.5px; max-width: 260px; overflow: hidden;
              text-overflow: ellipsis; white-space: nowrap; }
   .chip {
-    display: inline-block; font-size: 12px; padding: 3px 10px; border-radius: 4px; margin: 2px 3px 2px 0;
+    display: inline-block; font-size: 14px; padding: 3px 10px; border-radius: 4px; margin: 2px 3px 2px 0;
     background: var(--blue-bg); color: var(--blue); font-weight: 600; white-space: nowrap;
   }
   .chip.all { background: var(--ok-bg); color: var(--ok); }
@@ -54,17 +54,17 @@
     display: flex; align-items: center; justify-content: space-between;
     padding: 18px 20px 4px;
   }
-  .card-head h2 { font-size: 15.5px; font-weight: 700; color: var(--ink-strong); }
-  .status-dot { display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; color: var(--ok); white-space: nowrap; }
+  .card-head h2 { font-size: 17.5px; font-weight: 700; color: var(--ink-strong); }
+  .status-dot { display: inline-flex; align-items: center; gap: 6px; font-size: 14.5px; color: var(--ok); white-space: nowrap; }
   .status-dot::before { content: ''; width: 7px; height: 7px; border-radius: 50%; background: var(--ok); }
   .status-dot.off { color: var(--dim); }
   .status-dot.off::before { background: #b3bfd4; }
-  .row-btn { background: none; border: none; font-size: 13px; padding: 5px 8px;
+  .row-btn { background: none; border: none; font-size: 15px; padding: 5px 8px;
              border-radius: 6px; color: var(--blue); font-family: inherit; white-space: nowrap; }
   .row-btn:hover { background: var(--blue-bg); }
   .row-btn.del { color: var(--danger); }
   .row-btn.del:hover { background: #fdeef0; }
-  .audit-detail { color: var(--dim); font-size: 12.5px; max-width: 280px;
+  .audit-detail { color: var(--dim); font-size: 14.5px; max-width: 280px;
                   overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
   /* 弹窗 */
@@ -75,15 +75,15 @@
   .modal { width: min(580px, calc(100vw - 40px)); max-height: 88vh; overflow-y: auto;
            background: #fff; border-radius: 18px; padding: 28px 30px 26px;
            box-shadow: 0 30px 80px rgba(29, 47, 78, .32); }
-  .modal h2 { font-size: 18px; margin-bottom: 4px; color: var(--ink-strong);
+  .modal h2 { font-size: 20px; margin-bottom: 4px; color: var(--ink-strong);
               display: flex; align-items: center; gap: 9px; }
   .modal h2::before { content: ""; width: 4px; height: 18px; border-radius: 2px;
                       background: linear-gradient(180deg, #5793f8, #2e6ae8); }
-  .modal .modal-sub { font-size: 12.5px; color: var(--dim); margin-bottom: 22px; padding-left: 13px; }
+  .modal .modal-sub { font-size: 14.5px; color: var(--dim); margin-bottom: 22px; padding-left: 13px; }
   .field { margin-bottom: 18px; }
-  .field label { display: block; font-size: 13px; font-weight: 600; color: #384766; margin-bottom: 8px; }
+  .field label { display: block; font-size: 15px; font-weight: 600; color: #384766; margin-bottom: 8px; }
   .field input[type="text"], .field input[type="datetime-local"], .field select, .field textarea {
-    width: 100%; padding: 11px 13px; border-radius: 10px; font-size: 13.5px; font-family: inherit;
+    width: 100%; padding: 11px 13px; border-radius: 10px; font-size: 15.5px; font-family: inherit;
     background: #f8fafd; border: 1.5px solid #e3eaf5; color: var(--ink);
     transition: border-color .15s, background .15s, box-shadow .15s;
   }
@@ -92,7 +92,7 @@
     box-shadow: 0 0 0 3px rgba(47, 110, 244, .12);
   }
   .row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
-  .field .hint { font-size: 12px; color: var(--dim); margin-top: 6px; }
+  .field .hint { font-size: 14px; color: var(--dim); margin-top: 6px; }
   /* 图标：点选内置图标网格 + 自由输入（URL/emoji 兼容） */
   .icon-grid {
     display: grid; grid-template-columns: repeat(auto-fill, minmax(38px, 1fr));
@@ -108,35 +108,35 @@
   /* 分类：点选已有分类 + 自由输入新分类 */
   .cat-chips { display: flex; flex-wrap: wrap; gap: 7px; margin-bottom: 9px; }
   .cat-chip {
-    font-size: 12.5px; padding: 6px 14px; border-radius: 999px; font-family: inherit;
+    font-size: 14.5px; padding: 6px 14px; border-radius: 999px; font-family: inherit;
     background: #f1f5fa; color: #45557a; border: 1.5px solid transparent; cursor: pointer;
     transition: all .15s;
   }
   .cat-chip:hover { color: var(--blue); background: #eaf2fd; }
   .cat-chip.on { background: var(--blue-bg); border-color: var(--blue); color: var(--blue); font-weight: 600; }
   .roles-box { display: flex; flex-wrap: wrap; gap: 8px; }
-  .role-check { display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px;
+  .role-check { display: inline-flex; align-items: center; gap: 6px; font-size: 14.5px;
                 padding: 7px 14px; border-radius: 999px; cursor: pointer;
                 background: #f1f5fa; border: 1.5px solid transparent; color: #45557a;
                 transition: all .15s; }
   .role-check:has(input:checked) { background: var(--blue-bg); border-color: var(--blue); color: var(--blue); font-weight: 600; }
   .role-check input { accent-color: var(--blue); }
   .perm-group { margin-bottom: 10px; }
-  .perm-sys { font-size: 12px; font-weight: 700; color: #7787a3; margin-bottom: 6px; }
+  .perm-sys { font-size: 14px; font-weight: 700; color: #7787a3; margin-bottom: 6px; }
   .role-check .perm-x { width: 16px; height: 16px; border-radius: 50%; border: 0; padding: 0; margin-left: 2px;
     display: inline-flex; align-items: center; justify-content: center; cursor: pointer;
-    background: rgba(69,85,122,.12); color: inherit; font-size: 13px; line-height: 1; font-family: inherit;
+    background: rgba(69,85,122,.12); color: inherit; font-size: 15px; line-height: 1; font-family: inherit;
     transition: all .15s; }
   .role-check:has(input:checked) .perm-x { background: rgba(37,99,235,.15); }
   .role-check .perm-x:hover { background: #d4380d; color: #fff; }
   .add-role { display: flex; gap: 8px; margin-top: 10px; }
-  .add-role input { flex: 1; padding: 9px 13px; border-radius: 10px; font-size: 12.5px; font-family: inherit;
+  .add-role input { flex: 1; padding: 9px 13px; border-radius: 10px; font-size: 14.5px; font-family: inherit;
                     background: #f8fafd; border: 1.5px solid #e3eaf5; color: var(--ink);
                     transition: border-color .15s, background .15s, box-shadow .15s; }
   .add-role input:focus { outline: none; border-color: var(--blue); background: #fff;
                           box-shadow: 0 0 0 3px rgba(47, 110, 244, .12); }
   .add-role .btn { box-shadow: none; border: 1.5px solid #e3eaf5; border-radius: 10px; }
-  .switch-row { display: flex; align-items: center; gap: 10px; font-size: 13.5px;
+  .switch-row { display: flex; align-items: center; gap: 10px; font-size: 15.5px;
                 background: #f8fafd; border-radius: 10px; padding: 12px 14px; }
   .modal-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 24px;
                    padding-top: 18px; border-top: 1px solid #eef3fa; }
@@ -144,14 +144,42 @@
   /* 提示 toast / 403 */
   #toast { position: fixed; bottom: 28px; left: 50%; transform: translateX(-50%) translateY(80px);
            background: var(--ink-strong); color: #fff;
-           padding: 11px 22px; border-radius: 999px; font-size: 13px; transition: transform .25s; z-index: 300; }
+           padding: 11px 22px; border-radius: 999px; font-size: 15px; transition: transform .25s; z-index: 300; }
   #toast.show { transform: translateX(-50%) translateY(0); }
   .forbidden { text-align: center; margin: 100px auto; color: var(--dim); }
-  .forbidden .big { font-size: 44px; margin-bottom: 16px; }
+  .forbidden .big { font-size: 46px; margin-bottom: 16px; }
   .forbidden a { color: var(--blue); }
+  /* 操作审计：折叠头 + 筛选条 + 分页脚 */
+  .audit-toggle { width: 100%; text-align: left; cursor: pointer; background: none; border: 0; font-family: inherit; padding-bottom: 18px; }
+  .audit-toggle:hover h2 { color: var(--blue); }
+  .audit-toggle[aria-expanded="true"] { padding-bottom: 4px; }
+  .audit-toggle[aria-expanded="true"] .audit-caret { transform: rotate(180deg); }
+  .audit-caret { color: var(--dim); font-size: 18px; transition: transform .18s; }
+  .audit-sub { font-size: 14px; font-weight: 400; color: var(--dim); margin-left: 8px; }
+  .audit-filter { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 10px 20px 14px; }
+  .audit-filter input, .audit-filter select {
+    padding: 8px 11px; border-radius: 9px; font-size: 14.5px; font-family: inherit;
+    background: #f8fafd; border: 1.5px solid #e3eaf5; color: var(--ink);
+  }
+  .audit-filter input:focus, .audit-filter select:focus { outline: none; border-color: var(--blue); background: #fff; }
+  .audit-filter #afActor { width: 150px; }
+  .audit-filter .btn { padding: 8px 16px; font-size: 14.5px; }
+  .audit-dash { color: var(--dim); font-size: 14px; }
+  .audit-foot { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 20px 16px; font-size: 14px; color: var(--dim); }
+  .pagefoot { text-align: center; font-size: 13.5px; color: #6d7d9c; padding: 26px 0 2px; letter-spacing: .06em; }
+  .pagefoot .paw { width: 1em; height: 1em; vertical-align: -0.12em; margin: 0 2px; }
 </style>
 </head>
 <body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="pawprint" viewBox="0 0 100 100">
+    <ellipse cx="50" cy="66" rx="21" ry="16" fill="currentColor"/>
+    <ellipse cx="25" cy="40" rx="8.5" ry="11" fill="currentColor" transform="rotate(-22 25 40)"/>
+    <ellipse cx="42" cy="30" rx="8.5" ry="11" fill="currentColor" transform="rotate(-7 42 30)"/>
+    <ellipse cx="59" cy="30" rx="8.5" ry="11" fill="currentColor" transform="rotate(8 59 30)"/>
+    <ellipse cx="76" cy="41" rx="8.5" ry="11" fill="currentColor" transform="rotate(24 76 41)"/>
+  </symbol>
+</svg>
 <header class="top">
   <div class="logo">
     <span class="mk">吉</span>
@@ -188,6 +216,7 @@
       管理后台
     </span>
     <div class="side-card">
+      <svg class="paw-bg" viewBox="0 0 100 100" aria-hidden="true"><use href="#pawprint"/></svg>
       <div class="t">可见性说明</div>
       <p>应用与公告都按 RBAC 权限码配置可见性，留空 = 所有登录用户可见；员工端实时过滤</p>
     </div>
@@ -240,28 +269,50 @@
         </div>
       </div>
 
-      <!-- 操作审计（只读） -->
-      <div class="card" style="margin-top:20px">
-        <div class="card-head">
-          <h2>操作审计</h2>
-          <button class="btn" id="auditRefreshBtn">刷新</button>
-        </div>
-        <div class="tbl-wrap">
-        <table>
-          <thead>
-            <tr>
-              <th style="width:150px">时间</th><th style="width:150px">操作人</th>
-              <th style="width:88px">操作</th><th style="width:180px">对象</th><th>详情</th>
-            </tr>
-          </thead>
-          <tbody id="auditTbody"></tbody>
-        </table>
+      <!-- 操作审计（只读，默认折叠；展开时才加载，分页 + 筛选） -->
+      <div class="card audit-card" style="margin-top:20px">
+        <button class="card-head audit-toggle" id="auditToggle" aria-expanded="false" aria-controls="auditBody">
+          <h2>操作审计 <span class="audit-sub" id="auditSub">默认折叠 · 点击展开查看</span></h2>
+          <span class="audit-caret" aria-hidden="true">▾</span>
+        </button>
+        <div id="auditBody" hidden>
+          <form class="audit-filter" id="auditFilter">
+            <input type="text" id="afActor" placeholder="操作人" autocomplete="off">
+            <select id="afAction" aria-label="操作">
+              <option value="">全部操作</option>
+              <option value="create">新增</option><option value="update">修改</option>
+              <option value="delete">删除</option><option value="reorder">排序</option>
+            </select>
+            <select id="afTarget" aria-label="对象">
+              <option value="">全部对象</option>
+              <option value="module">模块</option><option value="announcement">公告</option>
+              <option value="custom_require">自定义规则</option><option value="role">角色</option>
+            </select>
+            <input type="date" id="afSince" aria-label="起始日期">
+            <span class="audit-dash">至</span>
+            <input type="date" id="afUntil" aria-label="截止日期">
+            <button type="submit" class="btn primary">查询</button>
+            <button type="button" class="btn" id="afReset">清空</button>
+          </form>
+          <div class="tbl-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th style="width:150px">时间</th><th style="width:150px">操作人</th>
+                <th style="width:88px">操作</th><th style="width:180px">对象</th><th>详情</th>
+              </tr>
+            </thead>
+            <tbody id="auditTbody"></tbody>
+          </table>
+          </div>
+          <div class="audit-foot">
+            <span id="auditCount"></span>
+            <button class="btn" id="auditMoreBtn" hidden>加载更早的 50 条</button>
+          </div>
         </div>
       </div>
 
-      <div style="text-align:center;font-size:11.5px;color:#6d7d9c;padding:26px 0 2px;letter-spacing:.06em">
-        吉信德集团 · 企业门户 🐾 portal.zestrade.com/admin
-      </div>
+      <div class="pagefoot">厦门吉信德集团有限公司 · 企业门户 <svg class="paw" viewBox="0 0 100 100" aria-hidden="true"><use href="#pawprint"/></svg> portal.zestrade.com/admin</div>
     </div>
   </div>
 </div>
@@ -340,7 +391,7 @@
     </div>
     <div class="field switch-row">
       <input type="checkbox" id="fEnabled" checked style="accent-color:var(--blue);width:16px;height:16px">
-      <label for="fEnabled" style="margin:0;color:var(--ink);font-size:13px">启用（关闭后所有人不可见）</label>
+      <label for="fEnabled" style="margin:0;color:var(--ink);font-size:15px">启用（关闭后所有人不可见）</label>
     </div>
     <div class="modal-actions">
       <button class="btn" id="cancelBtn">取消</button>
@@ -438,9 +489,9 @@ function renderTable() {
       <td><span class="drag-handle" title="拖拽排序">⠿</span></td>
       <td class="mod-icon">${icon}</td>
       <td><div class="mod-name">${esc(m.name)}${m.status === 'maintenance' ? ' <span class="chip warn">维护中</span>' : ''}</div>
-          <div style="color:var(--dim);font-size:12.5px;margin-top:4px">${esc(m.description)}${m.owner_name ? ` · 负责人：${esc(m.owner_name)}` : ''}</div></td>
+          <div style="color:var(--dim);font-size:14.5px;margin-top:4px">${esc(m.description)}${m.owner_name ? ` · 负责人：${esc(m.owner_name)}` : ''}</div></td>
       <td>${m.category ? `<span class="chip">${esc(m.category)}</span>`
-                       : '<span style="color:var(--dim);font-size:12px">未分类</span>'}</td>
+                       : '<span style="color:var(--dim);font-size:14px">未分类</span>'}</td>
       <td><div class="mod-url" title="${esc(m.url)}">${esc(m.url)}</div></td>
       <td>${reqs}</td>
       <td><span class="status-dot ${m.enabled ? '' : 'off'}">${m.enabled ? '启用' : '停用'}</span></td>
@@ -534,7 +585,7 @@ function createPermPicker(ids) {
     if (orphan.length) html += group('本条已保存但不在目录中', orphan.map(c =>
       chip(c, true, '仅从本条可见性中移除', 'data-del-orphan', 'RBAC 目录与自定义规则中均无此码')).join(''));
     els.groups.innerHTML = html ||
-      '<span style="font-size:12px;color:var(--dim)">RBAC 权限目录不可用，可在下方手动输入权限码</span>';
+      '<span style="font-size:14px;color:var(--dim)">RBAC 权限目录不可用，可在下方手动输入权限码</span>';
   }
 
   els.groups.addEventListener('change', () => {
@@ -765,7 +816,7 @@ function renderAnnTable() {
     return `<tr class="row">
       <td style="max-width:340px">${esc(a.content)}</td>
       <td>${a.level === 'warning' ? '<span class="chip warn">警示</span>' : '<span class="chip">提示</span>'}</td>
-      <td style="font-size:12.5px;color:var(--dim);white-space:nowrap">${range}</td>
+      <td style="font-size:14.5px;color:var(--dim);white-space:nowrap">${range}</td>
       <td>${reqs}</td>
       <td><span class="status-dot ${a.enabled ? '' : 'off'}">${a.enabled ? '启用' : '停用'}</span></td>
       <td><button class="row-btn" onclick="openAnnEdit(${a.id})">编辑</button>
@@ -840,35 +891,78 @@ async function loadAnns() {
 
 /* ── 操作审计（只读，最近 100 条）── */
 const AUDIT_ACTION = { create: '新增', update: '修改', delete: '删除', reorder: '排序' };
-const AUDIT_TARGET = { module: '模块', role: '角色', announcement: '公告' };
+const AUDIT_TARGET = { module: '模块', role: '角色', announcement: '公告', custom_require: '自定义规则' };
+const AUDIT_PAGE = 50;
 
-function renderAuditTable(logs) {
+function renderAuditTable(logs, append = false) {
   const tbody = document.getElementById('auditTbody');
-  if (!logs.length) {
+  if (!logs.length && !append) {
     tbody.innerHTML = `<tr><td colspan="5" style="text-align:center;color:var(--dim);padding:26px">
-      暂无审计记录 · 管理端的所有写操作会自动记录在这里</td></tr>`;
+      没有符合条件的审计记录 · 管理端的所有写操作会自动记录在这里</td></tr>`;
     return;
   }
-  tbody.innerHTML = logs.map(l => {
+  const html = logs.map(l => {
     const detail = l.detail && Object.keys(l.detail).length ? JSON.stringify(l.detail) : '';
     return `<tr class="row">
-      <td style="font-size:12.5px;color:var(--dim);white-space:nowrap">${fmtDT(l.created_at)}</td>
+      <td style="font-size:14.5px;color:var(--dim);white-space:nowrap">${fmtDT(l.created_at)}</td>
       <td>${esc(l.actor) || '<span style="color:var(--dim)">—</span>'}</td>
       <td><span class="chip">${esc(AUDIT_ACTION[l.action] || l.action)}</span></td>
       <td>${esc(AUDIT_TARGET[l.target_type] || l.target_type)}${
-        l.target_id ? ` <span style="color:var(--dim);font-size:12.5px">${esc(l.target_id)}</span>` : ''}</td>
+        l.target_id ? ` <span style="color:var(--dim);font-size:14.5px">${esc(l.target_id)}</span>` : ''}</td>
       <td><div class="audit-detail" title="${esc(detail)}">${esc(detail)}</div></td>
     </tr>`;
   }).join('');
+  if (append) tbody.insertAdjacentHTML('beforeend', html); else tbody.innerHTML = html;
 }
 
-async function loadAudit() {
-  renderAuditTable((await fetchJSON('/api/admin/audit?limit=100')).logs);
+/* 审计分页状态：当前筛选条件 + 游标 + 已加载条数 */
+const auditState = { loaded: false, nextBeforeId: null, count: 0 };
+
+function auditQuery(beforeId) {
+  const q = new URLSearchParams({ limit: AUDIT_PAGE });
+  const v = id => document.getElementById(id).value.trim();
+  if (v('afActor')) q.set('actor', v('afActor'));
+  if (v('afAction')) q.set('action', v('afAction'));
+  if (v('afTarget')) q.set('target_type', v('afTarget'));
+  if (v('afSince')) q.set('since', v('afSince'));
+  if (v('afUntil')) q.set('until', v('afUntil'));
+  if (beforeId) q.set('before_id', beforeId);
+  return '/api/admin/audit?' + q.toString();
 }
 
-document.getElementById('auditRefreshBtn').addEventListener('click', async () => {
-  try { await loadAudit(); toast('审计已刷新'); }
-  catch (e) { toast('加载审计失败：' + e.message); }
+async function loadAudit(more = false) {
+  const data = await fetchJSON(auditQuery(more ? auditState.nextBeforeId : null));
+  renderAuditTable(data.logs, more);
+  auditState.loaded = true;
+  auditState.nextBeforeId = data.next_before_id;
+  auditState.count = (more ? auditState.count : 0) + data.logs.length;
+  document.getElementById('auditCount').textContent =
+    auditState.count ? `已显示 ${auditState.count} 条${data.next_before_id ? '，还有更早的记录' : '，已到最早一条'}` : '';
+  document.getElementById('auditMoreBtn').hidden = !data.next_before_id;
+  document.getElementById('auditSub').textContent = auditState.count ? `最近 ${auditState.count} 条` : '';
+}
+
+document.getElementById('auditToggle').addEventListener('click', async () => {
+  const btn = document.getElementById('auditToggle');
+  const body = document.getElementById('auditBody');
+  const open = btn.getAttribute('aria-expanded') !== 'true';
+  btn.setAttribute('aria-expanded', String(open));
+  body.hidden = !open;
+  if (open && !auditState.loaded) {           // 展开才加载，折叠着不请求
+    try { await loadAudit(); } catch (e) { toast('加载审计失败：' + e.message); }
+  }
+  if (!open) document.getElementById('auditSub').textContent = '已折叠 · 点击展开查看';
+});
+document.getElementById('auditFilter').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  try { await loadAudit(); } catch (err) { toast('查询失败：' + (err.detail || err.message)); }
+});
+document.getElementById('afReset').addEventListener('click', async () => {
+  document.getElementById('auditFilter').reset();
+  try { await loadAudit(); } catch (err) { toast('查询失败：' + err.message); }
+});
+document.getElementById('auditMoreBtn').addEventListener('click', async () => {
+  try { await loadAudit(true); } catch (err) { toast('加载失败：' + err.message); }
 });
 
 /* ── 初始化 ── */
@@ -898,7 +992,6 @@ async function loadModules() {
     await loadCustomRequires();
     await loadModules();
     await loadAnns();
-    await loadAudit();
     document.getElementById('main').hidden = false;
   } catch (err) {
     // 后端接口本身逐条挂了 require_permission 门禁，这里只是给个友好页面：

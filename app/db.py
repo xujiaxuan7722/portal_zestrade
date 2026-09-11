@@ -387,11 +387,37 @@ def log_action(
         )
 
 
-def list_audit_logs(limit: int = 100) -> list[dict]:
+def list_audit_logs(
+    limit: int = 100,
+    before_id: Optional[int] = None,
+    actor: Optional[str] = None,
+    action: Optional[str] = None,
+    target_type: Optional[str] = None,
+    since: Optional[datetime] = None,
+    until: Optional[datetime] = None,
+) -> list[dict]:
+    """按 id 倒序取一页审计记录。before_id 为游标（只取更早的记录），
+    actor 模糊匹配，action / target_type 精确匹配，since <= created_at < until。"""
+    where, params = [], []
+    if before_id is not None:
+        where.append("id < %s"); params.append(before_id)
+    if actor:
+        where.append("actor ILIKE %s"); params.append(f"%{actor}%")
+    if action:
+        where.append("action = %s"); params.append(action)
+    if target_type:
+        where.append("target_type = %s"); params.append(target_type)
+    if since is not None:
+        where.append("created_at >= %s"); params.append(since)
+    if until is not None:
+        where.append("created_at < %s"); params.append(until)
+    sql = "SELECT * FROM audit_logs"
+    if where:
+        sql += " WHERE " + " AND ".join(where)
+    sql += " ORDER BY id DESC LIMIT %s"
+    params.append(limit)
     with pool().connection() as conn:
-        rows = conn.execute(
-            "SELECT * FROM audit_logs ORDER BY id DESC LIMIT %s", (limit,)
-        ).fetchall()
+        rows = conn.execute(sql, params).fetchall()
     return [
         {
             "id": r["id"],

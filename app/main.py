@@ -8,7 +8,7 @@ main.py — ZesTrade 企业门户后端
   PUT  /api/favorites               保存我的常用应用（整表替换，顺序即列表顺序）
   GET  /api/announcements           当前生效的横幅公告（按权限码过滤，规则同应用）
   GET/POST/PUT/DEL /api/admin/announcements[/{id}]  公告管理
-  GET  /api/admin/audit             管理操作审计日志
+  GET  /api/admin/audit             管理操作审计（分页：before_id 游标；筛选：actor/action/target_type/since/until）
   GET  /api/admin/modules           全部模块
   POST /api/admin/modules           新增模块
   PUT  /api/admin/modules/reorder   保存排序
@@ -26,7 +26,7 @@ main.py — ZesTrade 企业门户后端
 
 import re
 from contextlib import asynccontextmanager
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Annotated, Literal, Optional
 
@@ -390,11 +390,42 @@ async def admin_delete_announcement(
     return {"ok": True}
 
 
+AUDIT_PAGE_MAX = 200
+
+
+def _parse_day(value: Optional[str], name: str) -> Optional[datetime]:
+    """审计筛选的日期参数：YYYY-MM-DD，解析失败 400。"""
+    if not value:
+        return None
+    try:
+        return datetime.strptime(value, "%Y-%m-%d")
+    except ValueError:
+        raise HTTPException(status_code=400, detail=f"{name} 须为 YYYY-MM-DD")
+
+
 @app.get("/api/admin/audit")
 async def admin_audit_logs(
-    limit: int = 100, auth: AuthInfo = Depends(require_permission(PORTAL_MANAGE_PERMISSION))
+    limit: int = 50,
+    before_id: Optional[int] = None,
+    actor: Optional[str] = None,
+    action: Optional[str] = None,
+    target_type: Optional[str] = None,
+    since: Optional[str] = None,
+    until: Optional[str] = None,
+    auth: AuthInfo = Depends(require_permission(PORTAL_MANAGE_PERMISSION)),
 ):
-    return {"logs": db.list_audit_logs(min(max(limit, 1), 500))}
+    """审计分页：按 id 倒序，游标 before_id 取更早一页；返回 next_before_id 为 None 表示没有更多。
+    until 为日期时含当天整天（右开区间取次日零点）。"""
+    page = min(max(limit, 1), AUDIT_PAGE_MAX)
+    until_dt = _parse_day(until, "until")
+    if until_dt is not None:
+        until_dt = until_dt.replace(hour=0, minute=0) + timedelta(days=1)
+    logs = db.list_audit_logs(
+        page, before_id=before_id, actor=(actor or "").strip() or None,
+        action=action or None, target_type=target_type or None,
+        since=_parse_day(since, "since"), until=until_dt,
+    )
+    return {"logs": logs, "next_before_id": logs[-1]["id"] if len(logs) == page else None}
 
 
 # ============================================================

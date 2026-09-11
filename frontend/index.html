@@ -14,29 +14,30 @@
   }
   .search input {
     flex: 1; border: none; outline: none; background: none; font-family: inherit;
-    font-size: 13.5px; color: var(--ink);
+    font-size: 15.5px; color: var(--ink);
   }
   .search input::placeholder { color: #9fadc4; }
   .top-right { margin-left: auto; display: flex; align-items: center; gap: 22px; }
 
   /* 背景宠物元素：一串爪印从右上角"走进"页面 + 一根小骨头 */
   .decor { position: absolute; pointer-events: none; user-select: none; color: rgba(255, 255, 255, .62); z-index: 0; }
-  .decor.p1 { top: 10px;  right: 34px;  width: 30px; transform: rotate(-118deg); }
-  .decor.p2 { top: 54px;  right: 92px;  width: 27px; transform: rotate(-132deg); color: rgba(255, 255, 255, .55); }
-  .decor.p3 { top: 26px;  right: 148px; width: 24px; transform: rotate(-115deg); color: rgba(255, 255, 255, .48); }
-  .decor.p4 { top: 72px;  right: 204px; width: 21px; transform: rotate(-130deg); color: rgba(255, 255, 255, .4); }
-  .decor.bone { top: 108px; right: 48px; width: 46px; transform: rotate(24deg); color: rgba(255, 255, 255, .45); }
+  /* 爪印从右上角走到标语"I share, enjoy and love."的左端，大致覆盖整条标语 */
+  .decor.p1 { top: 8px;   right: 28px;  width: 30px; transform: rotate(-118deg); }
+  .decor.p2 { top: 56px;  right: 100px; width: 27px; transform: rotate(-132deg); color: rgba(255, 255, 255, .55); }
+  .decor.p3 { top: 20px;  right: 172px; width: 24px; transform: rotate(-115deg); color: rgba(255, 255, 255, .48); }
+  .decor.p4 { top: 66px;  right: 248px; width: 21px; transform: rotate(-130deg); color: rgba(255, 255, 255, .4); }
+  .decor.bone { top: 110px; right: 60px; width: 46px; transform: rotate(24deg); color: rgba(255, 255, 255, .45); }
   @media (max-width: 900px) { .decor { display: none; } }
 
   .wrap { position: relative; z-index: 1; }   /* 让内容压在爪印装饰之上 */
   .page-h { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; padding: 2px 4px 4px; }
-  .page-h h1 { font-size: 21px; font-weight: 700; color: var(--ink-strong); }
-  .page-h .sub { font-size: 12.5px; color: #5d6d8c; }
+  .page-h h1 { font-size: 23px; font-weight: 700; color: var(--ink-strong); }
+  .page-h .sub { font-size: 14.5px; color: #5d6d8c; }
   /* 品牌徽章：小巧的白色胶囊 */
   .brand-pill {
     margin-left: auto; display: inline-flex; align-items: center; gap: 7px;
     background: #fff; border-radius: 999px; padding: 7px 15px;
-    font-size: 10.5px; font-weight: 700; letter-spacing: .22em; color: #3d5480;
+    font-size: 12.5px; font-weight: 700; letter-spacing: .22em; color: #3d5480;
     box-shadow: 0 4px 14px rgba(61, 98, 176, .12);
   }
   .brand-pill svg { width: 13px; color: var(--blue); }
@@ -46,27 +47,27 @@
   .banner {
     display: flex; align-items: center; gap: 10px;
     background: #fff; border-left: 4px solid var(--blue); border-radius: 10px;
-    padding: 11px 14px; font-size: 13px; color: #33425f;
+    padding: 11px 14px; font-size: 15px; color: #33425f;
     box-shadow: 0 2px 10px rgba(61, 98, 176, .08);
   }
   .banner.warning { border-left-color: #f5a623; }
   .banner .bic { flex: none; }
   .banner .bx {
-    margin-left: auto; color: #9aa7c0; font-size: 15px; line-height: 1;
+    margin-left: auto; color: #9aa7c0; font-size: 17px; line-height: 1;
     padding: 2px 6px; border-radius: 6px; flex: none;
   }
   .banner .bx:hover { color: #e0455a; background: #fdeef0; }
 
   .card-h {
     display: flex; align-items: center; gap: 10px;
-    padding: 18px 22px 4px; font-size: 15px; font-weight: 700; color: var(--ink-strong);
+    padding: 18px 22px 4px; font-size: 17px; font-weight: 700; color: var(--ink-strong);
   }
   .card-h .hic {
     width: 24px; height: 24px; border-radius: 7px; flex: none;
     background: var(--blue-bg); color: var(--blue);
     display: grid; place-items: center;
   }
-  .card-h .ct { font-size: 12px; color: var(--dim); font-weight: 400; }
+  .card-h .ct { font-size: 14px; color: var(--dim); font-weight: 400; }
 
   /* 应用磁贴：模块卡内的浅蓝底小卡 */
   .agrid {
@@ -83,35 +84,35 @@
     box-shadow: 0 12px 26px rgba(47, 110, 244, .14);
   }
   .acard .ic {
-    width: 48px; height: 48px; border-radius: 13px; font-size: 23px; color: #fff;
+    width: 48px; height: 48px; border-radius: 13px; font-size: 25px; color: #fff;
     display: grid; place-items: center; flex: none;
   }
   .acard .ic img { width: 26px; height: 26px; object-fit: contain; }
-  .acard b { display: block; font-size: 14.5px; font-weight: 650; color: var(--ink-strong); padding-right: 20px; }
-  .acard span { display: block; font-size: 12px; color: var(--dim); margin-top: 5px; line-height: 1.5; }
+  .acard b { display: block; font-size: 16.5px; font-weight: 650; color: var(--ink-strong); padding-right: 20px; }
+  .acard span { display: block; font-size: 14px; color: var(--dim); margin-top: 5px; line-height: 1.5; }
   .acard .maint {
-    display: inline-block; font-style: normal; font-size: 10.5px; font-weight: 600;
+    display: inline-block; font-style: normal; font-size: 12.5px; font-weight: 600;
     color: #c2701a; background: #fff3e0; border-radius: 999px; padding: 2px 8px;
     margin-left: 7px; vertical-align: 1px;
   }
-  .acard .owner-line { font-size: 11px; color: #93a1bc; margin-top: 4px; }
+  .acard .owner-line { font-size: 13px; color: #93a1bc; margin-top: 4px; }
   .acard .ar {
     position: absolute; right: 14px; bottom: 14px; transform: translateX(-4px);
-    color: var(--blue); font-size: 15px; opacity: 0; transition: all .18s;
+    color: var(--blue); font-size: 17px; opacity: 0; transition: all .18s;
   }
   .acard:hover .ar { opacity: 1; transform: none; }
   /* 星标收藏：右上角，悬停或已收藏时可见 */
   .fav-btn {
-    position: absolute; top: 8px; right: 10px; font-size: 15px; line-height: 1;
+    position: absolute; top: 8px; right: 10px; font-size: 17px; line-height: 1;
     color: #b8c5dc; opacity: 0; transition: all .15s; padding: 3px;
   }
   .acard:hover .fav-btn { opacity: 1; }
   .fav-btn:hover { transform: scale(1.25); color: var(--star); }
   .fav-btn.faved { opacity: 1; color: var(--star); }
 
-  .empty { padding: 40px 0 46px; text-align: center; color: var(--dim); font-size: 13px; line-height: 1.8; }
-  .empty .big { font-size: 36px; margin-bottom: 10px; }
-  .empty .relogin { display: inline-block; padding: 8px 18px; border-radius: 8px; background: var(--blue, #2563eb); color: #fff; text-decoration: none; font-size: 13px; }
+  .empty { padding: 40px 0 46px; text-align: center; color: var(--dim); font-size: 15px; line-height: 1.8; }
+  .empty .big { font-size: 38px; margin-bottom: 10px; }
+  .empty .relogin { display: inline-block; padding: 8px 18px; border-radius: 8px; background: var(--blue, #2563eb); color: #fff; text-decoration: none; font-size: 15px; }
 
   /* 骨架屏 */
   .skeleton {
@@ -121,14 +122,15 @@
   }
   @keyframes shimmer { to { background-position: -200% 0; } }
 
-  .pagefoot { text-align: center; font-size: 11.5px; color: #6d7d9c; padding: 26px 0 2px; letter-spacing: .06em; }
+  .pagefoot { text-align: center; font-size: 13.5px; color: #6d7d9c; padding: 26px 0 2px; letter-spacing: .06em; }
+  .pagefoot .paw { width: 1em; height: 1em; vertical-align: -0.12em; margin: 0 2px; }
 </style>
 </head>
 <body>
 <header class="top">
   <div class="logo">
     <span class="mk">吉</span>
-    <div><b>吉信德企业门户</b><small>AMAZON · PETSFIT</small></div>
+    <div><b>吉信德企业门户</b><small aria-label="SUNNYPET · PETSFIT"><svg aria-hidden="true"><text x="0" y="10" textLength="100%" lengthAdjust="spacing">SUNNYPET · PETSFIT</text></svg></small></div>
   </div>
   <div class="search">🔍<input id="q" placeholder="搜索应用名称…"></div>
   <div class="top-right">
@@ -161,6 +163,7 @@
       管理后台
     </a>
     <div class="side-card">
+      <svg class="paw-bg" viewBox="0 0 100 100" aria-hidden="true"><use href="#pawprint"/></svg>
       <div class="t">没有你需要的应用？</div>
       <p>入口按你的权限展示，如需访问其他系统请联系管理员开通</p>
     </div>
@@ -192,8 +195,8 @@
     <div class="wrap">
       <div class="page-h">
         <h1 id="greetTitle">个人工作台</h1>
-        <span class="sub" id="cntLine">按你的权限展示，点击进入无需再次登录</span>
-        <span class="brand-pill"><svg viewBox="0 0 100 100"><use href="#pawprint"/></svg>PETSFIT</span>
+        <span class="sub" id="cntLine">按你的权限展示</span>
+        <span class="brand-pill"><svg viewBox="0 0 100 100"><use href="#pawprint"/></svg>I share, enjoy and love.</span>
       </div>
 
       <div class="banners" id="banners"></div>
@@ -205,7 +208,7 @@
         </div></div>
       </div>
 
-      <div class="pagefoot">吉信德集团 · 企业门户 🐾 portal.zestrade.com</div>
+      <div class="pagefoot">厦门吉信德集团有限公司 · 企业门户 <svg class="paw" viewBox="0 0 100 100" aria-hidden="true"><use href="#pawprint"/></svg> portal.zestrade.com</div>
     </div>
   </div>
 </div>
@@ -349,7 +352,7 @@ function render() {
   let list = allModules;
   if (q) list = list.filter(m => (m.name + m.description).toLowerCase().includes(q));
   document.getElementById('cntLine').textContent =
-    `共 ${list.length} 个应用 · 按你的权限展示，点击进入无需再次登录`;
+    `共 ${list.length} 个应用 · 按你的权限展示`;
   (view === 'apps' ? renderApps : renderWorkbench)(list);
 }
 
