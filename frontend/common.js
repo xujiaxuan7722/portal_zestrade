@@ -87,10 +87,10 @@ function renderUserArea(me) {
   });
 })();
 
-/* 未登录（401）时的"重新登录"入口：门户不做登录页，登录由 oauth2-proxy 发起，
-   /oauth2/start 是它的标准入口，rd 为登录完成后跳回的地址。 */
+/* 未登录（401）时的"重新登录"入口：门户不做登录页，/login 由后端跳到公司共享
+   oauth2-proxy 的登录入口，登录完成后回到当前页。 */
 function reloginUrl() {
-  return `/oauth2/start?rd=${encodeURIComponent(window.location.href)}`;
+  return `${API_BASE}/login?returnTo=${encodeURIComponent(window.location.pathname + window.location.search + window.location.hash)}`;
 }
 
 /* 演示模式（AUTH_BYPASS）下点"退出登录"会被后端送回 /?demo_logout=1：

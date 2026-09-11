@@ -19,6 +19,7 @@ main.py — ZesTrade 企业门户后端
   DELETE   /api/admin/custom-requires/{code} 删除并从所有应用/公告 requires 同步移除
   /api/admin/* 门禁统一为 require_permission(PORTAL_MANAGE_PERMISSION)，
   持 "*"（现 admin）或 portal:* 通配的用户天然通过
+  GET  /login                       登录入口：跳共享 oauth2-proxy 的 /oauth2/start?rd=<回跳>
   GET  /logout                      登出：清缓存 + 跳 IdP 登出地址（bypass 演示模式回首页并提示）
   GET  /admin                       管理后台页面
   GET  /                            门户首页（静态）
@@ -40,12 +41,15 @@ from . import db, rbac_catalog
 from . import auth as _auth
 from .auth import (
     AuthInfo,
+    build_login_url,
     build_logout_url,
     clear_auth_cache,
     close_http_client,
-    extract_user_jwt,
+    get_auth_info,
+    public_url,
     require_auth,
     require_permission,
+    resolve_user_jwt,
     sanitize_return_to,
 )
 
@@ -434,16 +438,31 @@ async def admin_audit_logs(
 # ============================================================
 
 
+@app.get("/login")
+async def login(request: Request, returnTo: Optional[str] = None):
+    """登录入口：送去共享 oauth2-proxy（sso）登录，登录后回到 returnTo（只接受站内地址）。
+    演示模式没有登录这回事，直接回首页；未配置 OAUTH2_PROXY_URL 时也回首页（靠代理层拦截）。"""
+    if _auth.AUTH_BYPASS:
+        return RedirectResponse(url="/")
+    return_to = sanitize_return_to(request, returnTo)
+    if return_to and return_to.startswith("/"):
+        return_to = public_url(request, return_to)
+    url = build_login_url(request, return_to)
+    return RedirectResponse(url=url or "/")
+
+
 @app.get("/logout")
 async def logout(request: Request, returnTo: Optional[str] = None):
     if _auth.AUTH_BYPASS:
         # 演示模式没有登录态可退：不跳 Keycloak（无 client_id 会被拒或退了个寂寞），
         # 回首页并让前端提示"演示模式退出不生效"。切换用户只能改 AUTH_BYPASS_* 重启。
         return RedirectResponse(url="/?demo_logout=1")
-    jwt_token = extract_user_jwt(request)
-    clear_auth_cache(jwt_token)
+    jwt_token = await resolve_user_jwt(request)
+    clear_auth_cache(jwt_token, request)
     # 防开放重定向：非站内地址的 returnTo 会被丢弃（登出仍生效）
     return_to = sanitize_return_to(request, returnTo)
+    if return_to and return_to.startswith("/"):
+        return_to = public_url(request, return_to)   # sso 的 rd 必须是完整公网地址
     return RedirectResponse(url=build_logout_url(request, return_to=return_to))
 
 
@@ -469,14 +488,23 @@ def _page(name: str) -> HTMLResponse:
     return HTMLResponse(html)
 
 
+async def _page_or_login(request: Request, name: str):
+    """页面路由：未登录且配置了共享 oauth2-proxy 时，直接把浏览器送去 sso 登录，
+    登录后回到当前页；否则照常出页面（API 仍逐条 401，页面里显示"重新登录"）。"""
+    if not _auth.AUTH_BYPASS and _auth.OAUTH2_PROXY_URL:
+        if not await get_auth_info(await resolve_user_jwt(request)):
+            return RedirectResponse(url=build_login_url(request, public_url(request)))
+    return _page(name)
+
+
 @app.get("/")
-async def index_page():
-    return _page("index.html")
+async def index_page(request: Request):
+    return await _page_or_login(request, "index.html")
 
 
 @app.get("/admin")
-async def admin_page():
-    return _page("admin.html")
+async def admin_page(request: Request):
+    return await _page_or_login(request, "admin.html")
 
 
 @app.middleware("http")

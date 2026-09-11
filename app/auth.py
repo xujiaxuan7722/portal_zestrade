@@ -43,6 +43,13 @@ KEYCLOAK_LOGOUT_URL = os.getenv(
 # oauth2-proxy 会话 cookie 并级联 Keycloak 登出。只登出 Keycloak 的话，proxy
 # 会话还活着，刷新页面即被放行（"退出了个寂寞"）——所以生产环境必配。
 OAUTH2_PROXY_SIGN_OUT_URL = os.getenv("OAUTH2_PROXY_SIGN_OUT_URL", "")
+# 公司共享 oauth2-proxy（如 https://sso.zestrade.com）。它的会话 cookie 作用域是整个
+# zestrade.com，所以门户不必等代理层塞令牌头：请求头里没令牌时，把浏览器带来的会话
+# cookie 转给 {OAUTH2_PROXY_URL}/oauth2/auth，202 即已登录，令牌在 X-Auth-Request-Access-Token
+# 响应头里；没会话就把浏览器送去 {OAUTH2_PROXY_URL}/oauth2/start?rd=<当前页> 登录。
+OAUTH2_PROXY_URL = os.getenv("OAUTH2_PROXY_URL", "").rstrip("/")
+OAUTH2_PROXY_COOKIE_NAME = os.getenv("OAUTH2_PROXY_COOKIE_NAME", "_oauth2_proxy")
+SESSION_TOKEN_TTL = 60  # 同一会话 cookie 换到的令牌缓存 60s，避免每个请求都问 sso
 # Keycloak 直连登出的兜底：新版 Keycloak 带 post_logout_redirect_uri 时要求
 # 伴随 id_token_hint 或 client_id，应用拿不到 id_token（在 oauth2-proxy 手里），
 # 故用 client_id 满足该要求
@@ -161,6 +168,82 @@ def extract_user_jwt(request: Request) -> str:
 
 
 # ============================================================
+# 共享 oauth2-proxy：会话 cookie → 令牌
+# ============================================================
+
+_session_token_cache: dict[str, tuple[str, float]] = {}
+
+
+def _session_cookie_header(request: Request) -> str:
+    """只转发 oauth2-proxy 自己的会话 cookie（大会话会拆成 _oauth2_proxy_0/_1…）。"""
+    parts = [
+        f"{k}={v}" for k, v in request.cookies.items()
+        if k == OAUTH2_PROXY_COOKIE_NAME or k.startswith(OAUTH2_PROXY_COOKIE_NAME + "_")
+    ]
+    return "; ".join(parts)
+
+
+async def token_from_session(request: Request) -> str:
+    """请求头里没令牌时，用浏览器带来的 oauth2-proxy 会话 cookie 向 sso 换令牌。
+    未配置 OAUTH2_PROXY_URL、没有会话 cookie、sso 判定未登录（非 202）→ 返回空串。"""
+    if not OAUTH2_PROXY_URL:
+        return ""
+    cookie = _session_cookie_header(request)
+    if not cookie:
+        return ""
+    key = hashlib.sha256(cookie.encode()).hexdigest()[:32]
+    hit = _session_token_cache.get(key)
+    if hit and hit[1] > time.time():
+        return hit[0]
+    try:
+        resp = await _get_http_client().get(
+            f"{OAUTH2_PROXY_URL}/oauth2/auth",
+            headers={"Cookie": cookie, "Accept": "application/json"},
+        )
+    except Exception as exc:
+        logger.warning("oauth2-proxy /oauth2/auth 调用异常：%r", exc)
+        return ""
+    if resp.status_code != 202:
+        _session_token_cache.pop(key, None)
+        return ""
+    token = (
+        resp.headers.get("X-Auth-Request-Access-Token")
+        or resp.headers.get("X-Forwarded-Access-Token")
+        or ""
+    )
+    if not token:
+        auth_header = resp.headers.get("Authorization") or ""
+        if auth_header.lower().startswith("bearer "):
+            token = auth_header[7:].strip()
+    if token:
+        if len(_session_token_cache) >= CACHE_MAX_ENTRIES:
+            _session_token_cache.clear()
+        _session_token_cache[key] = (token, time.time() + SESSION_TOKEN_TTL)
+    return token
+
+
+async def resolve_user_jwt(request: Request) -> str:
+    """令牌来源优先级：代理塞的请求头 → 共享 oauth2-proxy 会话 cookie 换取。"""
+    return extract_user_jwt(request) or await token_from_session(request)
+
+
+def public_url(request: Request, path: Optional[str] = None) -> str:
+    """浏览器看到的地址：经反向代理时以 X-Forwarded-Proto/Host 为准（登录回跳要用公网地址）。"""
+    scheme = request.headers.get("X-Forwarded-Proto") or request.url.scheme
+    host = request.headers.get("X-Forwarded-Host") or request.headers.get("Host") or request.url.netloc
+    p = path if path is not None else (request.url.path + (f"?{request.url.query}" if request.url.query else ""))
+    return f"{scheme}://{host}{p}"
+
+
+def build_login_url(request: Request, return_to: Optional[str] = None) -> Optional[str]:
+    """共享 oauth2-proxy 的登录入口；未配置 OAUTH2_PROXY_URL 时返回 None（只能靠代理层拦截）。"""
+    if not OAUTH2_PROXY_URL:
+        return None
+    rd = return_to or public_url(request, "/")
+    return f"{OAUTH2_PROXY_URL}/oauth2/start?{urlencode({'rd': rd})}"
+
+
+# ============================================================
 # 内存缓存
 # ============================================================
 
@@ -200,10 +283,14 @@ def _set_cached(token: str, data: Optional[AuthInfo], ttl: float = CACHE_TTL) ->
     )
 
 
-def clear_auth_cache(jwt_token: str) -> None:
-    """登出时调用：清掉本地缓存。"""
+def clear_auth_cache(jwt_token: str, request: Optional[Request] = None) -> None:
+    """登出时调用：清掉本地缓存（权限缓存 + 该会话 cookie 换到的令牌缓存）。"""
     if jwt_token:
         _auth_cache.pop(_cache_key(jwt_token), None)
+    if request is not None:
+        cookie = _session_cookie_header(request)
+        if cookie:
+            _session_token_cache.pop(hashlib.sha256(cookie.encode()).hexdigest()[:32], None)
 
 
 # ============================================================
@@ -367,7 +454,7 @@ async def require_auth(request: Request) -> AuthInfo:
     # fail-closed：RBAC 配置不齐时一律视为未认证，不能放行
     if not (RBAC_API_URL and RBAC_CLIENT_ID and RBAC_CLIENT_SECRET):
         raise HTTPException(status_code=401, detail="RBAC not configured")
-    jwt_token = extract_user_jwt(request)
+    jwt_token = await resolve_user_jwt(request)
     auth = await get_auth_info(jwt_token)
     if not auth:
         raise HTTPException(status_code=401, detail="Unauthorized")

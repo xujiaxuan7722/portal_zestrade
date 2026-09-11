@@ -19,6 +19,7 @@ for _k in (
     "AUTH_BYPASS_EMAIL",
     "IDP",
     "OAUTH2_PROXY_SIGN_OUT_URL",
+    "OAUTH2_PROXY_URL",
     "KEYCLOAK_CLIENT_ID",
 ):
     os.environ.pop(_k, None)
