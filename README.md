@@ -159,7 +159,7 @@ PostgreSQL / RBAC / oauth2-proxy 均为外部依赖，地址由 `.env` 注入。
 3. [x] 域名 `portal.zestrade.com` 指到本应用（2026-09-11 实测：公司代理纯转发到开发机 8201，登录由门户自己经
        `OAUTH2_PROXY_URL=https://sso.zestrade.com` 完成：无会话跳 sso 登录，有会话换令牌 → RBAC 按 unionid 匹配；
        钉钉扫码后 /api/me 200、权限过滤生效、后台门禁 403、登出跳 sso sign_out 均已跑通）
-4. [ ] **配置 `OAUTH2_PROXY_SIGN_OUT_URL`（必配）**，如
+4. [x] **配置 `OAUTH2_PROXY_SIGN_OUT_URL`（必配）**（已填 `https://sso.zestrade.com/oauth2/sign_out`），如
        `https://portal.zestrade.com/oauth2/sign_out`——只登出 Keycloak 不清
        oauth2-proxy 会话的话，用户刷新页面仍是登录态；未走 oauth2-proxy 的
        特殊部署才用 `KEYCLOAK_CLIENT_ID` 兜底直连登出
