@@ -44,7 +44,7 @@ svg { flex: none; }
 .logo small { display: block; font-size: 12.5px; color: var(--dim); letter-spacing: .12em; margin-top: 2px; font-weight: 400; }
 /* 首页副标题按主标题宽度铺满：SVG 文本的 textLength=100% 把字距拉到与上一行等宽，任何字体下都对齐 */
 /* width:0 + min-width:100%：副标题不参与容器宽度计算，容器宽度只由主标题决定，副标题再铺满到同宽 */
-.logo small:has(svg) { width: 0; min-width: 100%; }
+.logo small.fit { width: 0; min-width: 100%; }
 .logo small svg { display: block; width: 100%; height: 12px; overflow: visible; }
 .logo small text { font: inherit; letter-spacing: 0; fill: currentColor; }
 

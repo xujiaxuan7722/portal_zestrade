@@ -451,5 +451,17 @@ async def admin_page():
     return FileResponse(FRONTEND_DIR / "admin.html")
 
 
+@app.middleware("http")
+async def _static_no_cache(request: Request, call_next):
+    """前端静态文件（html/css/js）每次回源校验：StaticFiles 只带 ETag/Last-Modified，
+    不带 Cache-Control 时浏览器会按启发式缓存 css/js 数天，发版后就出现"HTML 是新的、
+    样式是旧的"错位。no-cache 让浏览器每次用 ETag 问一次（304 极小），不是不缓存。"""
+    response = await call_next(request)
+    path = request.url.path
+    if path == "/" or path.endswith((".html", ".css", ".js")) or path == "/admin":
+        response.headers.setdefault("Cache-Control", "no-cache")
+    return response
+
+
 # 静态资源必须最后 mount，否则会盖住上面的 API 路由
 app.mount("/", StaticFiles(directory=FRONTEND_DIR, html=True), name="static")

@@ -51,3 +51,12 @@ def test_real_logout_clears_cached_token(client, monkeypatch):
     auth._set_cached("tok", auth._BYPASS_AUTH)
     client.get("/logout", headers={"X-Auth-Request-Access-Token": "tok"}, follow_redirects=False)
     assert auth._get_cached("tok") is None
+
+
+def test_static_pages_are_no_cache(client):
+    """发版后浏览器不能再沿用旧 css/js：页面与静态资源必须带 Cache-Control: no-cache。"""
+    for path in ("/", "/admin", "/common.css", "/common.js", "/icons.js"):
+        resp = client.get(path)
+        assert resp.status_code == 200, path
+        assert resp.headers.get("cache-control") == "no-cache", path
+    assert "cache-control" not in client.get("/api/me").headers
