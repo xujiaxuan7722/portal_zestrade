@@ -9,6 +9,7 @@
 | `portal-zestrade.tar.gz` | 应用镜像（FastAPI + 前端静态文件 + 数据库迁移脚本）。**不要手动解压**，`docker load` 直接读取 |
 | `docker-compose.yml` | 方式 A 一键启动：应用容器 + 自带 PostgreSQL 容器 |
 | `docker-compose.remote-db.yml` | 方式 B：只起应用，连开发机 PostgreSQL |
+| `docker-compose.prod.yml` + `.env.prod.example` | 方式 C：正式接入，挂在公司 oauth2-proxy 后（见下）|
 | `seed/portal.sql` | 演示数据（应用模块、自定义规则等），数据库首次启动自动导入 |
 | `README.md` | 本文件 |
 
@@ -33,6 +34,22 @@ docker compose -f docker-compose.remote-db.yml up -d
 ```
 
 两种方式二选一即可；方式 A 自带数据库，离线可跑。
+
+## 方式 C：正式接入（portal.zestrade.com，钉钉扫码登录）
+
+portal.zestrade.com 已解析到公司服务器并配好了代理入口（当前 502 = 后面还没有应用）。
+在那台服务器上：
+
+```bash
+docker load -i portal-zestrade.tar.gz
+cp .env.prod.example .env.prod          # 填 RBAC 凭证；DATABASE_URL 指向生产库；端口按代理配置改
+docker compose -f docker-compose.prod.yml up -d
+```
+
+应用只监听 127.0.0.1:8200，由现有反向代理把 portal.zestrade.com 转到这个端口。
+登录走 sso.zestrade.com 的共享 oauth2-proxy，与 pm / pf / crm 同一套，RBAC 按钉钉身份自动匹配，
+不需要额外录入用户；管理后台只对持有 `*`（admin 角色）或 `portal:manage:console` 的人开放。
+自检：打开 https://portal.zestrade.com 应跳统一登录页；登录后点右上角"退出登录"应回到登录页。
 
 ## 停止 / 重置
 

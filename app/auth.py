@@ -37,7 +37,7 @@ CACHE_MAX_ENTRIES = 5000  # 缓存条目上限（oauth2-proxy 会定期刷新 to
 IDP = os.getenv("IDP", "keycloak").strip().lower()  # "keycloak" 或 "cf-access"
 KEYCLOAK_LOGOUT_URL = os.getenv(
     "KEYCLOAK_LOGOUT_URL",
-    "https://auth.duoweitree.com/realms/sso/protocol/openid-connect/logout",
+    "https://auth.zestrade.com/realms/sso/protocol/openid-connect/logout",
 )
 # 本项目部署链路走 oauth2-proxy：登出必须经它的 sign_out 地址，才能同时清掉
 # oauth2-proxy 会话 cookie 并级联 Keycloak 登出。只登出 Keycloak 的话，proxy

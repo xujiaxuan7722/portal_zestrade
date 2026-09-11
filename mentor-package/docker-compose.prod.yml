@@ -1,0 +1,16 @@
+# 正式接入（挂在公司共享 oauth2-proxy 后面，portal.zestrade.com）
+#   cp .env.prod.example .env.prod   # 填 RBAC 凭证，改 DATABASE_URL / BACKEND_PORT
+#   docker load -i portal-zestrade.tar.gz
+#   docker compose -f docker-compose.prod.yml up -d
+# 应用只监听 127.0.0.1:${BACKEND_PORT}，由同机反向代理把 portal.zestrade.com 转发到这个端口。
+# 登录由 sso.zestrade.com 的 oauth2-proxy 完成（scope 含 dingtalk-infos，RBAC 按钉钉身份自动匹配），
+# 应用从 X-Auth-Request-Access-Token / Authorization 头取 JWT 调 rbac.bogoo.ai 换权限。
+services:
+  app:
+    image: portal-zestrade:mentor
+    container_name: portal-zestrade
+    restart: unless-stopped
+    env_file:
+      - .env.prod
+    ports:
+      - "127.0.0.1:${BACKEND_PORT:-8200}:${BACKEND_PORT:-8200}"

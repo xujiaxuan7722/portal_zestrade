@@ -9,6 +9,7 @@ portal.db*
 .env.*
 !.env.example
 !.env.docker.example
+!.env.prod.example
 
 # 公司内部文档（docx 等），不入库
 docs/*.docx

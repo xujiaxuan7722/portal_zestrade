@@ -1,2 +1,3 @@
 portal-zestrade.tar.gz
 seed/*.sql
+.env.prod
