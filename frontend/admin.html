@@ -181,35 +181,6 @@
   tr.grp td { background: #f4f7fc; color: #45557a; font-weight: 700; font-size: 14.5px; padding: 8px 14px; }
   .mod-time { color: var(--dim); font-size: 14.5px; white-space: nowrap; }
   .btn:disabled { opacity: .45; cursor: not-allowed; box-shadow: none; }
-  /* 预览：把"个人工作台"整页按门户样式渲染在弹窗里，叠加当前未保存的改动 */
-  .modal { position: relative; }
-  .modal .pv-open { position: absolute; top: 22px; right: 26px; padding: 7px 14px; font-size: 14px; }
-  .pv-modal { width: min(1180px, calc(100vw - 40px)); background: #edf3fc; padding: 22px 26px 20px; }
-  .pv-modal .pv-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-bottom: 4px; }
-  .pv-modal .pv-head h2 { margin: 0; }
-  .pv-modal .pv-note { font-size: 14px; color: var(--dim); }
-  .pv-modal .pv-note b { color: #c2701a; font-weight: 600; }
-  .pv-modal .pv-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 18px; }
-  .pv .page-t { font-size: 21px; font-weight: 700; color: var(--ink-strong); margin: 8px 4px 0; }
-  .pv .card { margin-top: 14px; }
-  .pv .card-h { display: flex; align-items: center; gap: 10px; padding: 18px 22px 4px; font-size: 17px; font-weight: 700; color: var(--ink-strong); }
-  .pv .card-h .hic { width: 24px; height: 24px; border-radius: 7px; flex: none; background: var(--blue-bg); color: var(--blue); display: grid; place-items: center; }
-  .pv .card-h .ct { font-size: 14px; color: var(--dim); font-weight: 400; }
-  .pv .sec-h { display: flex; align-items: center; gap: 10px; margin: 24px 4px 6px; font-size: 19px; font-weight: 700; color: var(--ink-strong); }
-  .pv .sec-h .hic { width: 26px; height: 26px; border-radius: 7px; background: var(--blue); color: #fff; display: grid; place-items: center; }
-  .pv .sec-h .ct { font-size: 14.5px; color: var(--dim); font-weight: 400; }
-  .pv .agrid { display: grid; gap: 13px; padding: 14px 22px 22px; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); }
-  .pv .acard { display: flex; align-items: center; gap: 14px; position: relative; background: #f4f8fd; border: 1px solid #eaf1fa; border-radius: 12px; padding: 17px 16px; }
-  .pv .acard .ic { width: 48px; height: 48px; border-radius: 13px; font-size: 25px; color: #fff; display: grid; place-items: center; flex: none; }
-  .pv .acard .ic img { width: 26px; height: 26px; object-fit: contain; }
-  .pv .acard > div { flex: 1; min-width: 0; }
-  .pv .acard b { display: block; font-size: 16.5px; font-weight: 650; color: var(--ink-strong); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .pv .acard span { display: block; font-size: 14px; color: var(--dim); margin-top: 5px; line-height: 1.5; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .pv .acard .maint { display: inline-block; font-style: normal; font-size: 12.5px; font-weight: 600; color: #c2701a; background: #fff3e0; border-radius: 999px; padding: 2px 8px; margin-left: 6px; }
-  .pv .acard .owner-line { font-size: 13px; color: #93a1bc; margin-top: 4px; }
-  .pv .acard.changed { outline: 2px solid #f28c1c; outline-offset: 1px; }
-  .pv .acard .chg { position: absolute; right: 10px; top: 8px; font-size: 12px; font-weight: 600; color: #c2701a; }
-  .pv .empty { padding: 26px; text-align: center; color: var(--dim); font-size: 14.5px; }
   /* 分类顺序弹窗：可拖拽的分类清单 */
   .cat-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
   .cat-list li {
@@ -292,7 +263,6 @@
           <p>增删改模块、拖拽排序、按 RBAC 权限码配置可见性。"可见权限"为空 = 所有登录用户可见。</p>
         </div>
         <div class="actions">
-          <button class="btn" id="previewBtn" title="按门户样式查看个人工作台，含当前未保存的改动">预览</button>
           <button class="btn" id="catOrderBtn">分类顺序</button>
           <button class="btn save-order" id="saveOrderBtn">保存排序</button>
           <button class="btn primary" id="addBtn">＋ 新增模块</button>
@@ -409,7 +379,6 @@
 <!-- 新增/编辑弹窗 -->
 <div class="overlay" id="overlay">
   <div class="modal">
-    <button type="button" class="btn pv-open" data-ctx="module">预览</button>
     <h2 id="modalTitle">新增模块</h2>
     <div class="modal-sub">配置门户上展示的应用入口；带 * 为必填</div>
     <div class="field">
@@ -542,7 +511,6 @@
 <!-- 分类顺序弹窗 -->
 <div class="overlay" id="catOverlay">
   <div class="modal">
-    <button type="button" class="btn pv-open" data-ctx="category">预览</button>
     <h2>分类顺序与颜色</h2>
     <div class="modal-sub">拖拽调整门户首页各分类块的先后（默认按分类名拼音，"未分类"永远最后）；
       点色点给分类选底色，同一分类下所有应用的图标底色相同，门户与后台一致。</div>
@@ -551,21 +519,6 @@
       <button class="btn" id="catResetBtn" title="清除自定义顺序，恢复按拼音排序">恢复拼音默认</button>
       <button class="btn" id="catCancelBtn">取消</button>
       <button class="btn primary" id="catSaveBtn">保存</button>
-    </div>
-  </div>
-</div>
-
-<!-- 预览弹窗：个人工作台整页（门户样式）+ 未保存改动 -->
-<div class="overlay" id="pvOverlay" style="z-index:300">
-  <div class="modal pv-modal">
-    <div class="pv-head">
-      <h2>预览 · 个人工作台</h2>
-      <span class="pv-note" id="pvNote"></span>
-    </div>
-    <div class="pv" id="pvBody"></div>
-    <div class="pv-actions">
-      <button class="btn" id="pvBackBtn">返回修改</button>
-      <button class="btn primary" id="pvSaveBtn">确认保存</button>
     </div>
   </div>
 </div>
@@ -1260,114 +1213,6 @@ document.getElementById('auditMoreBtn').addEventListener('click', async () => {
   try { await loadAudit(true); } catch (err) { toast('加载失败：' + err.message); }
 });
 
-/* ── 预览：把"个人工作台"整页按门户样式渲染，叠加当前未保存的改动 ──
-   ctx = 'page'（页头：叠加未保存的拖拽顺序）/ 'module'（模块弹窗：叠加表单里的值）
-       / 'category'（分类弹窗：叠加清单里的顺序与选色）。
-   "确认保存"即触发对应上下文原有的保存动作，逻辑不复制。 */
-let pvCtx = 'page';
-const PV_CAT_ICONS = {
-  '电商运营': '<path d="M2 3h2l1.6 7.5h6.9L14 5H4.6"/><circle cx="6.6" cy="13" r="1.1"/><circle cx="11.4" cy="13" r="1.1"/>',
-  '供应链生产': '<path d="M8 2l6 3v6l-6 3-6-3V5z"/><path d="M2 5l6 3 6-3M8 8v6"/>',
-  '产品设计': '<path d="M11.3 2.7l2 2L5.6 12.4l-2.8.8.8-2.8zM10 4l2 2"/>',
-  '客户销售': '<circle cx="6" cy="5.8" r="2.3"/><path d="M2 13.4c0-2.1 1.8-3.4 4-3.4s4 1.3 4 3.4"/><circle cx="11.6" cy="6.4" r="1.7"/><path d="M11.2 10.1c1.7.3 2.8 1.4 2.8 3"/>',
-  '协同办公': '<rect x="2" y="3" width="12" height="8" rx="1.5"/><path d="M6 14h4M8 11v3"/>',
-  '未分类':   '<path d="M2 4.5A1.5 1.5 0 0 1 3.5 3h3L8 5h4.5A1.5 1.5 0 0 1 14 6.5v5a1.5 1.5 0 0 1-1.5 1.5h-9A1.5 1.5 0 0 1 2 11.5z"/>',
-};
-const PV_GRID = '<rect x="2" y="2" width="5" height="5" rx="1"/><rect x="9" y="2" width="5" height="5" rx="1"/><rect x="2" y="9" width="5" height="5" rx="1"/><rect x="9" y="9" width="5" height="5" rx="1"/>';
-const PV_STAR = '<path d="M8 1.8l1.9 3.9 4.3.6-3.1 3 .7 4.3L8 11.6l-3.8 2 .7-4.3-3.1-3 4.3-.6z"/>';
-const pvSvg = inner => `<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">${inner}</svg>`;
-
-function formModule() {
-  return {
-    name: document.getElementById('fName').value.trim() || '（未命名）',
-    description: document.getElementById('fDesc').value.trim(),
-    icon: document.getElementById('fIcon').value.trim(),
-    category: document.getElementById('fCat').value.trim(),
-    url: document.getElementById('fUrl').value.trim(),
-    owner_name: document.getElementById('fOwner').value.trim(),
-    status: document.getElementById('fStatus').value,
-    enabled: document.getElementById('fEnabled').checked,
-    requires: [],
-  };
-}
-
-/* 组装预览用的状态：saved 数据 + 当前上下文里未保存的部分 */
-function previewState(ctx) {
-  let mods = modules.map(m => ({ ...m }));
-  let order = categoryOrder, colors = categoryColors;
-  const changed = new Set();
-  const notes = [];
-  // 页面上未保存的拖拽顺序（任何上下文都叠加）
-  if (orderDirty) {
-    const ids = [...document.querySelectorAll('#tbody tr.row')].map(r => Number(r.dataset.id));
-    mods.sort((a, b) => ids.indexOf(a.id) - ids.indexOf(b.id));
-    notes.push('未保存的拖拽顺序');
-  }
-  if (ctx === 'module') {
-    const f = formModule();
-    if (editingId === null) { mods.push({ ...f, id: -1, sort_order: 1e9 }); changed.add(-1); }
-    else { const i = mods.findIndex(m => m.id === editingId); if (i >= 0) mods[i] = { ...mods[i], ...f }; changed.add(editingId); }
-    notes.push(editingId === null ? '新增模块（未保存）' : '模块修改（未保存）');
-  }
-  if (ctx === 'category') {
-    order = [...document.querySelectorAll('#catList li[draggable="true"]')].map(li => li.dataset.cat);
-    colors = { ...categoryColors, ...draftColors };
-    notes.push('分类顺序与颜色（未保存）');
-  }
-  return { mods, order, colors, changed, notes };
-}
-
-function renderPortalPreview(st) {
-  const visible = st.mods.filter(m => m.enabled);
-  const tile = m => `<div class="acard ${st.changed.has(m.id) ? 'changed' : ''}">
-      ${badgeHTML(m, st.colors, 48)}
-      <div><b title="${esc(m.name)}">${esc(m.name)}${m.status === 'maintenance' ? '<em class="maint">维护中</em>' : ''}</b>
-        <span>${esc(m.description) || '&nbsp;'}</span>${m.owner_name ? `<span class="owner-line">负责人：${esc(m.owner_name)}</span>` : ''}</div>
-      ${st.changed.has(m.id) ? '<span class="chg">未保存</span>' : ''}</div>`;
-  const card = (ic, title, ct, grid) => `<div class="card"><div class="card-h"><span class="hic">${pvSvg(ic)}</span>${title}<span class="ct">${ct}</span></div>${grid}</div>`;
-  const favs = visible.filter(m => pvFavIds.includes(m.id));
-  const favGrid = favs.length ? `<div class="agrid">${favs.map(tile).join('')}</div>` : `<div class="empty">☆ 还没有常用应用（按管理员自己的星标显示）</div>`;
-  const present = [...new Set(visible.map(catOf))];
-  const configured = st.order.filter(c => present.includes(c));
-  const rest = present.filter(c => !configured.includes(c) && c !== '未分类').sort(zhCollator.compare);
-  const cats = [...configured, ...rest, ...(present.includes('未分类') ? ['未分类'] : [])];
-  const blocks = cats.map(cat => {
-    const ms = visible.filter(m => catOf(m) === cat);
-    return card(PV_CAT_ICONS[cat] || PV_CAT_ICONS['未分类'], esc(cat), `${ms.length} 个应用`, `<div class="agrid">${ms.map(tile).join('')}</div>`);
-  }).join('');
-  document.getElementById('pvBody').innerHTML =
-    `<div class="page-t">个人工作台 · 你好，${esc(pvUserName)}</div>`
-    + card(PV_STAR, '我的常用应用', favs.length ? `${favs.length} 个` : '自定义', favGrid)
-    + `<div class="sec-h"><span class="hic">${pvSvg(PV_GRID)}</span>全部应用<span class="ct">共 ${visible.length} 个应用 · 按你的权限分类展示</span></div>`
-    + (blocks || '<div class="card"><div class="empty">🐾 暂无启用的应用</div></div>');
-}
-
-let pvFavIds = [], pvUserName = '';
-async function openPreview(ctx) {
-  pvCtx = ctx;
-  if (!pvFavIds.length) {
-    try { pvFavIds = (await fetchJSON('/api/favorites')).ids || []; } catch { pvFavIds = []; }
-  }
-  const st = previewState(ctx);
-  renderPortalPreview(st);
-  const note = document.getElementById('pvNote');
-  note.innerHTML = st.notes.length
-    ? `<b>含未保存改动：</b>${st.notes.map(esc).join('、')} · 按管理员全权限展示，员工只见其有权限的应用`
-    : '当前没有未保存的改动 · 按管理员全权限展示，员工只见其有权限的应用';
-  document.getElementById('pvSaveBtn').disabled = !st.notes.length;
-  document.getElementById('pvOverlay').classList.add('open');
-}
-document.getElementById('previewBtn').addEventListener('click', () => openPreview('page'));
-document.querySelectorAll('.pv-open').forEach(b => b.addEventListener('click', () => openPreview(b.dataset.ctx)));
-document.getElementById('pvBackBtn').addEventListener('click', () => document.getElementById('pvOverlay').classList.remove('open'));
-document.getElementById('pvSaveBtn').addEventListener('click', () => {
-  document.getElementById('pvOverlay').classList.remove('open');
-  // 复用各处原有的保存动作：先存拖拽顺序（若有），再存当前弹窗
-  if (orderDirty) document.getElementById('saveOrderBtn').click();
-  if (pvCtx === 'module') document.getElementById('saveBtn').click();
-  if (pvCtx === 'category') document.getElementById('catSaveBtn').click();
-});
-
 /* ── 初始化 ── */
 async function loadModules() {
   const [mods, order, colors] = await Promise.all([
@@ -1394,7 +1239,6 @@ async function loadModules() {
     }
     document.getElementById('whoami').textContent =
       `${me.user?.display_name || me.user?.email || ''} · 管理员`;
-    pvUserName = me.user?.display_name || me.user?.email || '';
     try {
       permCatalog = await fetchJSON('/api/admin/permissions');
     } catch (e) {
