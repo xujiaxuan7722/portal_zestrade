@@ -165,6 +165,25 @@
   .audit-filter #afActor { width: 150px; }
   .audit-filter .btn { padding: 8px 16px; font-size: 14.5px; }
   .audit-dash { color: var(--dim); font-size: 14px; }
+  /* 模块表工具栏：搜索 / 分类 / 排序；非默认状态下拖拽排序关闭 */
+  .mod-filter { padding: 14px 20px 6px; }
+  .mod-filter #mfQ { width: 300px; max-width: 100%; }
+  .mf-hint { font-size: 14px; color: var(--dim); }
+  .mf-hint b { color: #c2701a; font-weight: 600; }
+  table.drag-off .drag-handle { visibility: hidden; }
+  tr.grp td { background: #f4f7fc; color: #45557a; font-weight: 700; font-size: 14.5px; padding: 8px 14px; }
+  .mod-time { color: var(--dim); font-size: 14.5px; white-space: nowrap; }
+  .btn:disabled { opacity: .45; cursor: not-allowed; box-shadow: none; }
+  /* 分类顺序弹窗：可拖拽的分类清单 */
+  .cat-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+  .cat-list li {
+    display: flex; align-items: center; gap: 10px; padding: 10px 14px; border-radius: 10px;
+    background: #f8fafd; border: 1.5px solid #e3eaf5; font-size: 15px; cursor: grab;
+  }
+  .cat-list li.dragging { opacity: .5; }
+  .cat-list li.drag-over { border-color: var(--blue); }
+  .cat-list li.fixed { cursor: default; color: var(--dim); background: #fff; border-style: dashed; }
+  .cat-list .n { color: var(--dim); font-size: 14px; margin-left: auto; }
   .audit-foot { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 20px 16px; font-size: 14px; color: var(--dim); }
   .pagefoot { text-align: center; font-size: 13.5px; color: #6d7d9c; padding: 26px 0 2px; letter-spacing: .06em; }
   .pagefoot .paw { width: 1em; height: 1em; vertical-align: -0.12em; margin: 0 2px; }
@@ -207,10 +226,6 @@
       <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M2 7.5 8 2l6 5.5V14H2z"/><path d="M6 14v-4h4v4"/></svg>
       个人工作台
     </a>
-    <a class="nav" href="/#apps">
-      <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2" y="2" width="5" height="5" rx="1"/><rect x="9" y="2" width="5" height="5" rx="1"/><rect x="2" y="9" width="5" height="5" rx="1"/><rect x="9" y="9" width="5" height="5" rx="1"/></svg>
-      全部应用
-    </a>
     <span class="nav on">
       <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="8" cy="8" r="2.2"/><path d="M13 8c0-.4 0-.8-.1-1.1l1.4-1-1.2-2.1-1.6.6c-.6-.5-1.2-.9-2-1.1L9.2 1.6H6.8l-.3 1.7c-.8.2-1.4.6-2 1.1l-1.6-.6-1.2 2.1 1.4 1c-.1.3-.1.7-.1 1.1s0 .8.1 1.1l-1.4 1 1.2 2.1 1.6-.6c.6.5 1.2.9 2 1.1l.3 1.7h2.4l.3-1.7c.8-.2 1.4-.6 2-1.1l1.6.6 1.2-2.1-1.4-1c.1-.3.1-.7.1-1.1z"/></svg>
       管理后台
@@ -230,19 +245,34 @@
           <p>增删改模块、拖拽排序、按 RBAC 权限码配置可见性。"可见权限"为空 = 所有登录用户可见。</p>
         </div>
         <div class="actions">
+          <button class="btn" id="catOrderBtn">分类顺序</button>
           <button class="btn save-order" id="saveOrderBtn">保存排序</button>
           <button class="btn primary" id="addBtn">＋ 新增模块</button>
         </div>
       </div>
 
       <div class="card">
+        <form class="audit-filter mod-filter" id="modFilter" onsubmit="return false">
+          <input type="search" id="mfQ" placeholder="搜索名称 / 描述 / 地址 / 权限码 / 负责人" autocomplete="off">
+          <select id="mfCat" aria-label="分类"><option value="">全部分类</option></select>
+          <select id="mfSort" aria-label="排序">
+            <option value="manual">手动排序（可拖拽）</option>
+            <option value="created_desc">接入时间：新 → 旧</option>
+            <option value="created_asc">接入时间：旧 → 新</option>
+            <option value="updated_desc">最近修改在前</option>
+            <option value="category">按分类分组</option>
+          </select>
+          <button type="button" class="btn" id="mfReset">清空</button>
+          <span class="mf-hint" id="mfHint"></span>
+        </form>
         <div class="tbl-wrap">
-        <table>
+        <table id="modTable">
           <thead>
             <tr>
               <th style="width:36px"></th><th style="width:44px">图标</th><th>名称 / 描述</th>
               <th style="width:120px">分类</th>
-              <th>跳转地址</th><th>可见权限</th><th style="width:76px">状态</th><th style="width:120px">操作</th>
+              <th>跳转地址</th><th>可见权限</th><th style="width:104px">接入时间</th>
+              <th style="width:76px">状态</th><th style="width:120px">操作</th>
             </tr>
           </thead>
           <tbody id="tbody"></tbody>
@@ -287,6 +317,7 @@
               <option value="">全部对象</option>
               <option value="module">模块</option><option value="announcement">公告</option>
               <option value="custom_require">自定义规则</option><option value="role">角色</option>
+              <option value="category">分类顺序</option>
             </select>
             <input type="date" id="afSince" aria-label="起始日期">
             <span class="audit-dash">至</span>
@@ -351,7 +382,7 @@
       <label>分类</label>
       <div class="cat-chips" id="catChips"></div>
       <input type="text" id="fCat" maxlength="50" placeholder="点击上方选择，或直接输入创建新分类；留空归入“未分类”">
-      <div class="hint">分类完全自由：输入新名字保存后即成为新分类，门户"全部应用"页按分类分组展示</div>
+      <div class="hint">分类完全自由：输入新名字保存后即成为新分类，门户首页按分类分块展示，块的先后见右上角"分类顺序"</div>
     </div>
     <div class="field">
       <label>跳转地址 *</label>
@@ -460,6 +491,21 @@
   </div>
 </div>
 
+<!-- 分类顺序弹窗 -->
+<div class="overlay" id="catOverlay">
+  <div class="modal">
+    <h2>门户分类块顺序</h2>
+    <div class="modal-sub">拖拽调整门户首页各分类块的先后。默认按分类名拼音排序；保存后按这里的顺序，
+      以后新出现的分类按拼音接在末尾，"未分类"永远最后。</div>
+    <ul class="cat-list" id="catList"></ul>
+    <div class="modal-actions">
+      <button class="btn" id="catResetBtn" title="清除自定义顺序，恢复按拼音排序">恢复拼音默认</button>
+      <button class="btn" id="catCancelBtn">取消</button>
+      <button class="btn primary" id="catSaveBtn">保存</button>
+    </div>
+  </div>
+</div>
+
 <div id="toast"></div>
 
 <script src="/icons.js"></script>
@@ -468,6 +514,51 @@
 let modules = [];
 let editingId = null;   // null = 新增
 let orderDirty = false;
+let categoryOrder = [];   // 门户分类块自定义顺序（/api/admin/category-order）；空 = 纯拼音
+
+/* 分类顺序：与门户 index.html 同一规则——已配置的在前，其余按拼音，"未分类"最后 */
+const zhCollator = new Intl.Collator('zh-Hans-CN');
+const catOf = m => m.category || '未分类';
+function sortedCategories(present) {
+  const configured = categoryOrder.filter(c => present.includes(c));
+  const rest = present.filter(c => !configured.includes(c) && c !== '未分类').sort(zhCollator.compare);
+  return [...configured, ...rest, ...(present.includes('未分类') ? ['未分类'] : [])];
+}
+function fmtDate(iso) {
+  return iso ? iso.slice(0, 10) : '—';
+}
+
+/* ── 模块表工具栏：搜索 / 分类 / 排序。三者任一非默认即"筛选态"：拖拽与保存排序关闭 ── */
+const mf = {
+  q: () => document.getElementById('mfQ').value.trim().toLowerCase(),
+  cat: () => document.getElementById('mfCat').value,
+  sort: () => document.getElementById('mfSort').value,
+  active() { return !!(this.q() || this.cat() || this.sort() !== 'manual'); },
+};
+
+function renderCatSelect() {
+  const sel = document.getElementById('mfCat');
+  const cur = sel.value;
+  const cats = sortedCategories([...new Set(modules.map(catOf))]);
+  sel.innerHTML = '<option value="">全部分类</option>' + cats.map(c =>
+    `<option value="${esc(c)}">${esc(c)}</option>`).join('');
+  sel.value = cats.includes(cur) ? cur : '';
+}
+
+function filteredModules() {
+  const q = mf.q(), cat = mf.cat(), sort = mf.sort();
+  let list = modules.filter(m => !cat || catOf(m) === cat);
+  if (q) {
+    list = list.filter(m =>
+      [m.name, m.description, m.category, m.url, m.owner_name, ...(m.requires || [])]
+        .join('\n').toLowerCase().includes(q));
+  }
+  const ts = k => m => m[k] || '';
+  if (sort === 'created_desc') list = [...list].sort((a, b) => ts('created_at')(b).localeCompare(ts('created_at')(a)) || a.sort_order - b.sort_order);
+  if (sort === 'created_asc') list = [...list].sort((a, b) => ts('created_at')(a).localeCompare(ts('created_at')(b)) || a.sort_order - b.sort_order);
+  if (sort === 'updated_desc') list = [...list].sort((a, b) => ts('updated_at')(b).localeCompare(ts('updated_at')(a)) || a.sort_order - b.sort_order);
+  return list;
+}
 
 function toast(msg) {
   const el = document.getElementById('toast');
@@ -478,14 +569,12 @@ function toast(msg) {
 }
 
 /* ── 列表渲染 + 拖拽排序 ── */
-function renderTable() {
-  const tbody = document.getElementById('tbody');
-  tbody.innerHTML = modules.map(m => {
-    const icon = iconContent(m, 20);
-    const reqs = m.requires.length
-      ? m.requires.map(r => `<span class="chip">${esc(r)}</span>`).join('')
-      : '<span class="chip all">所有登录用户</span>';
-    return `<tr class="row" draggable="true" data-id="${m.id}">
+function rowHTML(m, draggable) {
+  const icon = iconContent(m, 20);
+  const reqs = m.requires.length
+    ? m.requires.map(r => `<span class="chip">${esc(r)}</span>`).join('')
+    : '<span class="chip all">所有登录用户</span>';
+  return `<tr class="row" draggable="${draggable}" data-id="${m.id}">
       <td><span class="drag-handle" title="拖拽排序">⠿</span></td>
       <td class="mod-icon">${icon}</td>
       <td><div class="mod-name">${esc(m.name)}${m.status === 'maintenance' ? ' <span class="chip warn">维护中</span>' : ''}</div>
@@ -494,13 +583,122 @@ function renderTable() {
                        : '<span style="color:var(--dim);font-size:14px">未分类</span>'}</td>
       <td><div class="mod-url" title="${esc(m.url)}">${esc(m.url)}</div></td>
       <td>${reqs}</td>
+      <td><span class="mod-time" title="接入门户：${esc(fmtDT(m.created_at) || '—')}&#10;最近修改：${esc(fmtDT(m.updated_at) || '—')}">${fmtDate(m.created_at)}</span></td>
       <td><span class="status-dot ${m.enabled ? '' : 'off'}">${m.enabled ? '启用' : '停用'}</span></td>
       <td><button class="row-btn" onclick="openEdit(${m.id})">编辑</button>
           <button class="row-btn del" onclick="removeModule(${m.id})">删除</button></td>
     </tr>`;
-  }).join('');
-  bindDrag();
 }
+
+function renderTable() {
+  const tbody = document.getElementById('tbody');
+  const table = document.getElementById('modTable');
+  const active = mf.active();
+  const list = filteredModules();
+  if (!list.length) {
+    tbody.innerHTML = `<tr><td colspan="9" style="text-align:center;color:var(--dim);padding:26px">
+      ${modules.length ? '没有符合条件的模块' : '还没有模块，点右上角"新增模块"'}</td></tr>`;
+  } else if (mf.sort() === 'category') {
+    const cats = sortedCategories([...new Set(list.map(catOf))]);
+    tbody.innerHTML = cats.map(cat => {
+      const mods = list.filter(m => catOf(m) === cat);
+      return `<tr class="grp"><td colspan="9">${esc(cat)} <span style="font-weight:400;color:var(--dim)">· ${mods.length} 个</span></td></tr>`
+        + mods.map(m => rowHTML(m, false)).join('');
+    }).join('');
+  } else {
+    tbody.innerHTML = list.map(m => rowHTML(m, !active)).join('');
+  }
+  table.classList.toggle('drag-off', active);
+  const saveBtn = document.getElementById('saveOrderBtn');
+  saveBtn.disabled = active;
+  saveBtn.title = active ? '清空筛选后才能拖拽排序' : '';
+  document.getElementById('mfHint').innerHTML = active
+    ? `<b>筛选中</b> · 显示 ${list.length} / ${modules.length} 个 · 拖拽排序已关闭`
+    : `拖动左侧 ⠿ 调整门户内同分类下的先后`;
+  if (!active) bindDrag();
+}
+
+/* 筛选态切换：有未保存的拖拽顺序时先确认，避免悄悄丢掉 */
+function onFilterChange() {
+  if (orderDirty && mf.active()) {
+    if (!confirm('有未保存的排序，切换筛选会丢弃。继续？')) { return renderFilterFromState(); }
+    orderDirty = false;
+    document.getElementById('saveOrderBtn').classList.remove('dirty');
+  }
+  renderTable();
+}
+let lastFilter = { q: '', cat: '', sort: 'manual' };
+function renderFilterFromState() {
+  document.getElementById('mfQ').value = lastFilter.q;
+  document.getElementById('mfCat').value = lastFilter.cat;
+  document.getElementById('mfSort').value = lastFilter.sort;
+}
+['mfQ', 'mfCat', 'mfSort'].forEach(id => {
+  document.getElementById(id).addEventListener('input', () => {
+    onFilterChange();
+    lastFilter = { q: document.getElementById('mfQ').value, cat: mf.cat(), sort: mf.sort() };
+  });
+});
+document.getElementById('mfReset').addEventListener('click', () => {
+  document.getElementById('mfQ').value = '';
+  document.getElementById('mfCat').value = '';
+  document.getElementById('mfSort').value = 'manual';
+  lastFilter = { q: '', cat: '', sort: 'manual' };
+  renderTable();
+});
+
+/* ── 门户分类块顺序弹窗 ── */
+function renderCatList(order) {
+  const counts = {};
+  modules.forEach(m => { counts[catOf(m)] = (counts[catOf(m)] || 0) + 1; });
+  const ul = document.getElementById('catList');
+  ul.innerHTML = order.map(c => `<li draggable="true" data-cat="${esc(c)}">
+      <span class="drag-handle">⠿</span>${esc(c)}<span class="n">${counts[c] || 0} 个应用</span></li>`).join('')
+    + (counts['未分类'] ? `<li class="fixed">未分类<span class="n">${counts['未分类']} 个应用 · 固定最后</span></li>` : '');
+  let dragLi = null;
+  ul.querySelectorAll('li[draggable="true"]').forEach(li => {
+    li.addEventListener('dragstart', () => { dragLi = li; li.classList.add('dragging'); });
+    li.addEventListener('dragend', () => { dragLi?.classList.remove('dragging'); dragLi = null; });
+    li.addEventListener('dragover', e => { e.preventDefault(); li.classList.add('drag-over'); });
+    li.addEventListener('dragleave', () => li.classList.remove('drag-over'));
+    li.addEventListener('drop', e => {
+      e.preventDefault();
+      li.classList.remove('drag-over');
+      if (!dragLi || dragLi === li) return;
+      li.parentNode.insertBefore(dragLi, li);
+    });
+  });
+}
+
+document.getElementById('catOrderBtn').addEventListener('click', () => {
+  const present = [...new Set(modules.map(catOf))];
+  renderCatList(sortedCategories(present).filter(c => c !== '未分类'));
+  document.getElementById('catOverlay').classList.add('open');
+});
+document.getElementById('catCancelBtn').addEventListener('click', () =>
+  document.getElementById('catOverlay').classList.remove('open'));
+document.getElementById('catResetBtn').addEventListener('click', () => {
+  const present = [...new Set(modules.map(catOf))].filter(c => c !== '未分类').sort(zhCollator.compare);
+  renderCatList(present);
+});
+
+async function saveCategoryOrder(order) {
+  const data = await fetchJSON('/api/admin/category-order', { method: 'PUT', body: JSON.stringify({ order }) });
+  categoryOrder = data.order;
+  renderCatSelect();
+  renderTable();
+}
+document.getElementById('catSaveBtn').addEventListener('click', async () => {
+  const order = [...document.querySelectorAll('#catList li[draggable="true"]')].map(li => li.dataset.cat);
+  const present = [...new Set(modules.map(catOf))].filter(c => c !== '未分类').sort(zhCollator.compare);
+  // 与纯拼音一致就存空数组 = 恢复默认，省得以后新分类被"卡"在配置之后
+  const isDefault = order.length === present.length && order.every((c, i) => c === present[i]);
+  try {
+    await saveCategoryOrder(isDefault ? [] : order);
+    document.getElementById('catOverlay').classList.remove('open');
+    toast(isDefault ? '已恢复按拼音排序' : '分类顺序已保存');
+  } catch (e) { toast('保存失败：' + e.message); }
+});
 
 let dragRow = null;
 function bindDrag() {
@@ -891,7 +1089,7 @@ async function loadAnns() {
 
 /* ── 操作审计（只读，最近 100 条）── */
 const AUDIT_ACTION = { create: '新增', update: '修改', delete: '删除', reorder: '排序' };
-const AUDIT_TARGET = { module: '模块', role: '角色', announcement: '公告', custom_require: '自定义规则' };
+const AUDIT_TARGET = { module: '模块', role: '角色', announcement: '公告', custom_require: '自定义规则', category: '分类顺序' };
 const AUDIT_PAGE = 50;
 
 function renderAuditTable(logs, append = false) {
@@ -967,7 +1165,13 @@ document.getElementById('auditMoreBtn').addEventListener('click', async () => {
 
 /* ── 初始化 ── */
 async function loadModules() {
-  modules = (await fetchJSON('/api/admin/modules')).modules;
+  const [mods, order] = await Promise.all([
+    fetchJSON('/api/admin/modules'),
+    fetchJSON('/api/admin/category-order').catch(() => ({ order: [] })),
+  ]);
+  modules = mods.modules;
+  categoryOrder = order.order || [];
+  renderCatSelect();
   renderTable();
 }
 

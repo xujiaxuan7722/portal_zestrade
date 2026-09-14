@@ -142,6 +142,9 @@ def _row_to_module(row: dict) -> dict:
         "enabled": row["enabled"],
         "status": row["status"],
         "owner_name": row["owner_name"],
+        # 接入门户时间 = 记录创建时间（后台"接入时间"列与排序依据）
+        "created_at": row["created_at"].isoformat() if row.get("created_at") else None,
+        "updated_at": row["updated_at"].isoformat() if row.get("updated_at") else None,
     }
 
 
@@ -368,6 +371,41 @@ def delete_custom_require(code: str) -> dict | None:
                 (code, code),
             ).rowcount
     return {"modules": m, "announcements": a}
+
+
+# ============================================================
+# portal_settings — 门户全局设置（键值表，见 005 迁移注释）
+# ============================================================
+
+CATEGORY_ORDER_KEY = "category_order"
+
+
+def get_setting(key: str, default: Any = None) -> Any:
+    with pool().connection() as conn:
+        row = conn.execute(
+            "SELECT value FROM portal_settings WHERE key = %s", (key,)
+        ).fetchone()
+    return row["value"] if row else default
+
+
+def set_setting(key: str, value: Any) -> None:
+    with pool().connection() as conn:
+        conn.execute(
+            "INSERT INTO portal_settings (key, value) VALUES (%s, %s)"
+            " ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = now()",
+            (key, Jsonb(value)),
+        )
+
+
+def get_category_order() -> list[str]:
+    """门户分类块的自定义顺序；未配置为空列表（门户即纯拼音排序）。"""
+    value = get_setting(CATEGORY_ORDER_KEY, [])
+    return [str(c) for c in value] if isinstance(value, list) else []
+
+
+def set_category_order(order: list[str]) -> list[str]:
+    set_setting(CATEGORY_ORDER_KEY, list(order))
+    return list(order)
 
 
 # ============================================================

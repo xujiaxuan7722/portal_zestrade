@@ -14,6 +14,7 @@ main.py — ZesTrade 企业门户后端
   PUT  /api/admin/modules/reorder   保存排序
   PUT  /api/admin/modules/{id}      修改模块
   DEL  /api/admin/modules/{id}      删除模块
+  GET/PUT /api/admin/category-order 门户分类块自定义顺序（空 = 纯拼音；/api/modules 一并返回给门户）
   GET  /api/admin/permissions       RBAC 权限目录（"可见权限"选择器数据源）
   GET/POST /api/admin/custom-requires        门户自定义准入规则（跨应用/公告复用的手填条目）
   DELETE   /api/admin/custom-requires/{code} 删除并从所有应用/公告 requires 同步移除
@@ -147,6 +148,23 @@ class ReorderIn(BaseModel):
     ids: list[int]
 
 
+class CategoryOrderIn(BaseModel):
+    """门户分类块顺序：分类名列表（去空白、去重、丢弃空串——"未分类"不参与排序，永远最后）。"""
+    order: list[Annotated[str, Field(max_length=50)]] = Field(default_factory=list, max_length=100)
+
+    @field_validator("order")
+    @classmethod
+    def _clean(cls, v: list[str]) -> list[str]:
+        seen: set[str] = set()
+        out: list[str] = []
+        for c in v:
+            c = c.strip()
+            if c and c != "未分类" and c not in seen:
+                seen.add(c)
+                out.append(c)
+        return out
+
+
 class FavoritesIn(BaseModel):
     ids: list[int] = Field(max_length=200)
 
@@ -211,7 +229,7 @@ async def my_modules(auth: AuthInfo = Depends(require_auth)):
         m for m in db.list_modules()
         if m["enabled"] and requires_visible(m["requires"], auth.permissions)
     ]
-    return {"modules": visible}
+    return {"modules": visible, "category_order": db.get_category_order()}
 
 
 @app.get("/api/favorites")
@@ -288,6 +306,21 @@ async def admin_delete_module(
         raise HTTPException(status_code=404, detail="Module not found")
     db.log_action(_actor(auth), "delete", "module", module_id)
     return {"ok": True}
+
+
+@app.get("/api/admin/category-order")
+async def admin_get_category_order(auth: AuthInfo = Depends(require_permission(PORTAL_MANAGE_PERMISSION))):
+    return {"order": db.get_category_order()}
+
+
+@app.put("/api/admin/category-order")
+async def admin_set_category_order(
+    body: CategoryOrderIn, auth: AuthInfo = Depends(require_permission(PORTAL_MANAGE_PERMISSION))
+):
+    """整表替换。列表里的分类按此顺序排在门户最前；未列出的分类按拼音接在其后。"""
+    order = db.set_category_order(body.order)
+    db.log_action(_actor(auth), "reorder", "category", detail={"order": order})
+    return {"order": order}
 
 
 @app.get("/api/admin/permissions")

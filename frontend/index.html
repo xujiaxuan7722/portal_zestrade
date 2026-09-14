@@ -146,13 +146,9 @@
 
 <div class="layout">
   <aside class="side">
-    <a class="nav" id="navWork" href="#workbench">
+    <a class="nav on" id="navWork" href="/">
       <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M2 7.5 8 2l6 5.5V14H2z"/><path d="M6 14v-4h4v4"/></svg>
       个人工作台
-    </a>
-    <a class="nav" id="navApps" href="#apps">
-      <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2" y="2" width="5" height="5" rx="1"/><rect x="9" y="2" width="5" height="5" rx="1"/><rect x="2" y="9" width="5" height="5" rx="1"/><rect x="9" y="9" width="5" height="5" rx="1"/></svg>
-      全部应用<span class="ct" id="allCt"></span>
     </a>
     <a class="nav" id="sideAdminLink" href="/admin" style="display:none">
       <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="8" cy="8" r="2.2"/><path d="M13 8c0-.4 0-.8-.1-1.1l1.4-1-1.2-2.1-1.6.6c-.6-.5-1.2-.9-2-1.1L9.2 1.6H6.8l-.3 1.7c-.8.2-1.4.6-2 1.1l-1.6-.6-1.2 2.1 1.4 1c-.1.3-.1.7-.1 1.1s0 .8.1 1.1l-1.4 1 1.2 2.1 1.6-.6c.6.5 1.2.9 2 1.1l.3 1.7h2.4l.3-1.7c.8-.2 1.4-.6 2-1.1l1.6.6 1.2-2.1-1.4-1c.1-.3.1-.7.1-1.1z"/></svg>
@@ -215,12 +211,17 @@ let allModules = [];
 let favIds = [];        // 常用应用 id（用户自定义，服务端持久化）
 let userName = '';
 
-/* ── 视图（hash 路由）：#workbench 个人工作台 / #apps 全部应用 ── */
-function currentView() {
-  return location.hash === '#apps' ? 'apps' : 'workbench';
+/* ── 分类块顺序：管理后台配置的在前（/api/modules 的 category_order），
+   其余按分类名拼音（浏览器中文排序规则），"未分类"永远最后 ── */
+let categoryOrder = [];
+const zhCollator = new Intl.Collator('zh-Hans-CN');
+
+function sortedCategories(present) {
+  const configured = categoryOrder.filter(c => present.includes(c));
+  const rest = present.filter(c => !configured.includes(c) && c !== '未分类').sort(zhCollator.compare);
+  return [...configured, ...rest, ...(present.includes('未分类') ? ['未分类'] : [])];
 }
 
-const CAT_ORDER = ['电商运营', '供应链生产', '产品设计', '客户销售', '协同办公'];
 const CAT_ICONS = {
   '电商运营': '<path d="M2 3h2l1.6 7.5h6.9L14 5H4.6"/><circle cx="6.6" cy="13" r="1.1"/><circle cx="11.4" cy="13" r="1.1"/>',
   '供应链生产': '<path d="M8 2l6 3v6l-6 3-6-3V5z"/><path d="M2 5l6 3 6-3M8 8v6"/>',
@@ -229,7 +230,6 @@ const CAT_ICONS = {
   '协同办公': '<rect x="2" y="3" width="12" height="8" rx="1.5"/><path d="M6 14h4M8 11v3"/>',
   '未分类':   '<path d="M2 4.5A1.5 1.5 0 0 1 3.5 3h3L8 5h4.5A1.5 1.5 0 0 1 14 6.5v5a1.5 1.5 0 0 1-1.5 1.5h-9A1.5 1.5 0 0 1 2 11.5z"/>',
 };
-const GRID_ICON = '<rect x="2" y="2" width="5" height="5" rx="1"/><rect x="9" y="2" width="5" height="5" rx="1"/><rect x="2" y="9" width="5" height="5" rx="1"/><rect x="9" y="9" width="5" height="5" rx="1"/>';
 const STAR_ICON = '<path d="M8 1.8l1.9 3.9 4.3.6-3.1 3 .7 4.3L8 11.6l-3.8 2 .7-4.3-3.1-3 4.3-.6z"/>';
 const GRADS = [
   'linear-gradient(140deg,#5793f8,#2e6ae8)',
@@ -296,59 +296,39 @@ function cardHTML(iconInner, title, count, gridHTML) {
   </div>`;
 }
 
-/* 个人工作台：我的常用应用（自定义）+ 全部应用 */
+/* 个人工作台：我的常用应用（自定义）+ 按分类拆成的悬浮模块卡 */
 function renderWorkbench(list) {
   const favs = favIds.map(id => list.find(m => m.id === id)).filter(Boolean);
   const favGrid = favs.length
     ? `<div class="agrid">${favs.map(tileHTML).join('')}</div>`
     : `<div class="empty"><div class="big">☆</div>还没有常用应用<br>把鼠标移到下方应用卡片上，点右上角的星标即可添加</div>`;
-  const allGrid = list.length
-    ? `<div class="agrid">${list.map(tileHTML).join('')}</div>`
-    : `<div class="empty"><div class="big">🐾</div>${allModules.length ? '没有匹配的应用' : '暂无可用应用，请联系管理员为你分配权限'}</div>`;
+  let catCards;
+  if (!list.length) {
+    catCards = `<div class="card"><div class="empty"><div class="big">🐾</div>
+      ${allModules.length ? '没有匹配的应用' : '暂无可用应用，请联系管理员为你分配权限'}</div></div>`;
+  } else {
+    const catOf = m => m.category || '未分类';
+    const cats = sortedCategories([...new Set(list.map(catOf))]);
+    catCards = cats.map(cat => {
+      const mods = list.filter(m => catOf(m) === cat);
+      return cardHTML(CAT_ICONS[cat] || CAT_ICONS['未分类'], esc(cat), `${mods.length} 个应用`,
+        `<div class="agrid">${mods.map(tileHTML).join('')}</div>`);
+    }).join('');
+  }
   document.getElementById('panels').innerHTML =
     cardHTML(STAR_ICON, '我的常用应用', favs.length ? `${favs.length} 个 · 点星标增减` : '自定义', favGrid) +
-    cardHTML(GRID_ICON, '全部应用', `${list.length} 个`, allGrid);
-}
-
-/* 全部应用：按分类拆成悬浮模块卡（预置分类 → 其他分类 → 未分类） */
-function renderApps(list) {
-  const box = document.getElementById('panels');
-  if (!list.length) {
-    box.innerHTML = `<div class="card"><div class="empty"><div class="big">🐾</div>
-      ${allModules.length ? '没有匹配的应用' : '暂无可用应用，请联系管理员为你分配权限'}</div></div>`;
-    return;
-  }
-  const catOf = m => m.category || '未分类';
-  const present = [...new Set(list.map(catOf))];
-  const cats = [
-    ...CAT_ORDER.filter(c => present.includes(c)),
-    ...present.filter(c => !CAT_ORDER.includes(c) && c !== '未分类').sort(),
-    ...(present.includes('未分类') ? ['未分类'] : []),
-  ];
-  box.innerHTML = cats.map(cat => {
-    const mods = list.filter(m => catOf(m) === cat);
-    return cardHTML(CAT_ICONS[cat] || CAT_ICONS['未分类'], esc(cat), `${mods.length} 个应用`,
-      `<div class="agrid">${mods.map(tileHTML).join('')}</div>`);
-  }).join('');
+    catCards;
 }
 
 function render() {
-  const view = currentView();
-  document.getElementById('navWork').classList.toggle('on', view === 'workbench');
-  document.getElementById('navApps').classList.toggle('on', view === 'apps');
-  // 横幅公告只在个人工作台显示
-  document.getElementById('banners').style.display = view === 'apps' ? 'none' : '';
-  document.getElementById('allCt').textContent = allModules.length || '';
-  const title = view === 'apps' ? '全部应用' : '个人工作台';
   document.getElementById('greetTitle').textContent =
-    userName ? `${title} · 你好，${userName}` : title;
-
+    userName ? `个人工作台 · 你好，${userName}` : '个人工作台';
   const q = document.getElementById('q').value.trim().toLowerCase();
   let list = allModules;
-  if (q) list = list.filter(m => (m.name + m.description).toLowerCase().includes(q));
+  if (q) list = list.filter(m => (m.name + m.description + (m.category || '')).toLowerCase().includes(q));
   document.getElementById('cntLine').textContent =
     `共 ${list.length} 个应用 · 按你的权限展示`;
-  (view === 'apps' ? renderApps : renderWorkbench)(list);
+  renderWorkbench(list);
 }
 
 /* 星标收藏：本地即时更新 + 服务端持久化（失败回滚） */
@@ -371,7 +351,6 @@ document.getElementById('panels').addEventListener('click', async (e) => {
 });
 
 document.getElementById('q').addEventListener('input', render);
-window.addEventListener('hashchange', render);
 
 (async function init() {
   try {
@@ -386,6 +365,7 @@ window.addEventListener('hashchange', render);
       fetchJSON('/api/announcements').catch(() => ({ announcements: [] })),
     ]);
     allModules = mods.modules;
+    categoryOrder = mods.category_order || [];
     favIds = favs.ids;
     anns = annsResp.announcements;
     renderBanners();

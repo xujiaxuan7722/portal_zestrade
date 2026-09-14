@@ -46,6 +46,7 @@ def client(monkeypatch):
     monkeypatch.setattr(
         main.db, "list_active_announcements", lambda: [dict(a) for a in ANNS]
     )
+    monkeypatch.setattr(main.db, "get_category_order", lambda: [])
     # TestClient 不用 with：不触发 lifespan，也就不会去连数据库
     yield TestClient(app)
     app.dependency_overrides.clear()
