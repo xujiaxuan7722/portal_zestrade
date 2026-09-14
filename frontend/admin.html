@@ -156,7 +156,10 @@
   .forbidden .big { font-size: 46px; margin-bottom: 16px; }
   .forbidden a { color: var(--blue); }
   /* 操作审计：折叠头 + 筛选条 + 分页脚 */
-  .ann-toggle h2 { display: flex; align-items: center; }
+  .ann-toggle h2 { display: flex; align-items: center; margin: 0; }
+  .ann-head { align-items: center; padding-right: 20px; }
+  .ann-head.collapsed { padding-bottom: 18px; }   /* 折叠时上下对称，标题在卡片内垂直居中 */
+  .ann-head .audit-caret { display: inline-flex; align-items: center; line-height: 1; }
   .st { display: inline-block; font-size: 13.5px; font-weight: 600; padding: 3px 9px; border-radius: 999px; white-space: nowrap; }
   .st.active { background: var(--ok-bg); color: var(--ok); }
   .st.pending { background: var(--blue-bg); color: var(--blue); }
@@ -308,7 +311,7 @@
 
       <!-- 横幅公告管理（可折叠；库里最多 50 条，超出新增时自动删最早失效的） -->
       <div class="card audit-card" style="margin-top:20px">
-        <div class="card-head" style="padding-right:20px">
+        <div class="card-head ann-head" id="annHead">
           <button class="audit-toggle ann-toggle" id="annToggle" aria-expanded="true" aria-controls="annBody" style="padding:0;flex:1;display:flex;align-items:center;justify-content:space-between">
             <h2>横幅公告 <span class="audit-sub" id="annSub"></span></h2>
             <span class="audit-caret" aria-hidden="true">▾</span>
@@ -1143,6 +1146,7 @@ function renderAnnTable() {
 function setAnnOpen(open) {
   document.getElementById('annToggle').setAttribute('aria-expanded', String(open));
   document.getElementById('annBody').hidden = !open;
+  document.getElementById('annHead').classList.toggle('collapsed', !open);
   try { localStorage.setItem('annOpen', open ? '1' : '0'); } catch {}
 }
 document.getElementById('annToggle').addEventListener('click', () =>
