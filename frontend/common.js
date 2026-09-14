@@ -46,6 +46,37 @@ function iconContent(m, size) {
   return esc((m.name || '?').slice(0, 1));
 }
 
+/* ── 图标底色调色板：门户磁贴与后台徽标共用，同分类同色 ──
+   键名与后端 main.py 的 PALETTE_KEYS 一致（改名需同步）。 */
+const PALETTE = {
+  blue:   { name: '蓝', css: 'linear-gradient(140deg,#5793f8,#2e6ae8)' },
+  green:  { name: '绿', css: 'linear-gradient(140deg,#43d492,#1fae6e)' },
+  orange: { name: '橙', css: 'linear-gradient(140deg,#f9b04e,#f28c1c)' },
+  purple: { name: '紫', css: 'linear-gradient(140deg,#a98cf8,#7e5ce8)' },
+  amber:  { name: '黄', css: 'linear-gradient(140deg,#f7c24b,#eda01f)' },
+  red:    { name: '红', css: 'linear-gradient(140deg,#f88a7a,#ee5a45)' },
+  cyan:   { name: '青', css: 'linear-gradient(140deg,#3fd0d9,#18a7b3)' },
+  indigo: { name: '靛', css: 'linear-gradient(140deg,#6f7ef5,#4653e0)' },
+};
+const PALETTE_KEYS = Object.keys(PALETTE);
+
+/* 未配置的分类按名字哈希取默认色：同名永远同色，不随排序/可见范围变化 */
+function defaultColorKey(cat) {
+  let h = 0;
+  for (const ch of String(cat || '未分类')) h = (h * 31 + ch.codePointAt(0)) >>> 0;
+  return PALETTE_KEYS[h % PALETTE_KEYS.length];
+}
+/* 分类的色名：后台配置优先，否则默认色 */
+function colorKeyOf(cat, colors) {
+  const k = colors?.[cat || '未分类'];
+  return PALETTE[k] ? k : defaultColorKey(cat);
+}
+/* 渐变徽标（门户 48px / 后台 40px 同一份），底色按模块所属分类 */
+function badgeHTML(m, colors, size) {
+  const css = PALETTE[colorKeyOf(m.category, colors)].css;
+  return `<span class="ic" style="background:${css}">${iconContent(m, Math.round(size * 0.46))}</span>`;
+}
+
 /* ── 用户区固定件：头像 + 下拉菜单 + 退出登录（接入规范固定件）── */
 /* 渲染公共部分（头像、菜单里的名字/邮箱/角色），返回展示名（未登录返回空串）；
    页面差异（首页的问候语与管理入口、后台的 whoami）由调用方基于 me 自行处理 */

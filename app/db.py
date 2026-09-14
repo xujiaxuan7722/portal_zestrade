@@ -408,6 +408,42 @@ def set_category_order(order: list[str]) -> list[str]:
     return list(order)
 
 
+CATEGORY_COLORS_KEY = "category_colors"
+# 图标底色调色板（与 frontend/common.js 的 PALETTE 键一致，改名需同步）
+PALETTE_KEYS = ("blue", "green", "orange", "purple", "amber", "red", "cyan", "indigo")
+
+
+def assign_missing_colors(colors: dict[str, str], categories: list[str]) -> dict[str, str]:
+    """给没配过色的分类分配默认色：取当前用得最少的色（并列取调色板靠前的），
+    分类按名字排序逐个分配，保证结果确定；已有配置不动。纯函数，便于测试。"""
+    out = dict(colors)
+    for cat in sorted(c for c in set(categories) if c not in out):
+        used = list(out.values())
+        out[cat] = min(PALETTE_KEYS, key=lambda k: (used.count(k), PALETTE_KEYS.index(k)))
+    return out
+
+
+def get_category_colors() -> dict[str, str]:
+    """分类 → 调色板色名（门户磁贴与后台徽标的底色，同分类同色）。
+    现有模块里出现而尚未配色的分类，在这里一次性分配默认色并落库：同一分类
+    此后对所有用户、任何排序都是同一个颜色，直到管理员在后台改它。"""
+    value = get_setting(CATEGORY_COLORS_KEY, {})
+    colors = {str(k): str(v) for k, v in value.items()} if isinstance(value, dict) else {}
+    colors = {k: v for k, v in colors.items() if v in PALETTE_KEYS}
+    with pool().connection() as conn:
+        rows = conn.execute("SELECT DISTINCT category FROM modules").fetchall()
+    present = [r["category"] or "未分类" for r in rows]
+    filled = assign_missing_colors(colors, present)
+    if filled != colors:
+        set_setting(CATEGORY_COLORS_KEY, filled)
+    return filled
+
+
+def set_category_colors(colors: dict[str, str]) -> dict[str, str]:
+    set_setting(CATEGORY_COLORS_KEY, dict(colors))
+    return dict(colors)
+
+
 # ============================================================
 # audit_logs
 # ============================================================

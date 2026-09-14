@@ -96,6 +96,10 @@ pip install -r requirements-dev.txt && pytest
   管理后台右上角"分类顺序"可拖拽自定义，存 `portal_settings.category_order`
   （迁移 005），`GET/PUT /api/admin/category-order`；已配置的在前，之后新出现的分类
   按拼音接在末尾。保存的顺序与拼音一致时存空 = 恢复默认
+- 图标底色归分类：同一分类下所有应用的图标底色相同，门户磁贴与后台表格用同一份
+  渐变徽标（`common.js` 的 `badgeHTML`）。后台"分类顺序与颜色"弹窗里点色点选色
+  （8 色调色板，存 `portal_settings.category_colors`，`GET/PUT /api/admin/category-colors`）；
+  未选过的分类按分类名哈希取默认色，同名永远同色，不随排序或可见范围变化
 - 预置分类：电商运营 / 供应链生产 / 产品设计 / 客户销售 / 协同办公，
   管理后台可自由输入新分类名
 - 管理后台模块表默认按分类分组展示，组内拖拽调整门户里同分类下的先后（不能跨组拖，

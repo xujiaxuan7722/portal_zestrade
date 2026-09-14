@@ -15,6 +15,7 @@ main.py — ZesTrade 企业门户后端
   PUT  /api/admin/modules/{id}      修改模块
   DEL  /api/admin/modules/{id}      删除模块
   GET/PUT /api/admin/category-order 门户分类块自定义顺序（空 = 纯拼音；/api/modules 一并返回给门户）
+  GET/PUT /api/admin/category-colors 分类底色（同分类同色，门户磁贴与后台徽标共用；/api/modules 一并返回）
   GET  /api/admin/permissions       RBAC 权限目录（"可见权限"选择器数据源）
   GET/POST /api/admin/custom-requires        门户自定义准入规则（跨应用/公告复用的手填条目）
   DELETE   /api/admin/custom-requires/{code} 删除并从所有应用/公告 requires 同步移除
@@ -148,6 +149,31 @@ class ReorderIn(BaseModel):
     ids: list[int]
 
 
+PALETTE_KEYS = db.PALETTE_KEYS   # 图标底色调色板（与 frontend/common.js 的 PALETTE 键一致）
+
+
+class CategoryColorsIn(BaseModel):
+    """分类 → 色名。键去空白、丢空串；值必须是调色板里的色名。"""
+    colors: dict[str, str] = Field(default_factory=dict)
+
+    @field_validator("colors")
+    @classmethod
+    def _clean(cls, v: dict[str, str]) -> dict[str, str]:
+        out: dict[str, str] = {}
+        for k, c in v.items():
+            k = k.strip()
+            if not k:
+                continue
+            if len(k) > 50:
+                raise ValueError("分类名不能超过 50 字")
+            if c not in PALETTE_KEYS:
+                raise ValueError(f"未知颜色 {c!r}，可选：{', '.join(PALETTE_KEYS)}")
+            out[k] = c
+        if len(out) > 100:
+            raise ValueError("分类数量超限")
+        return out
+
+
 class CategoryOrderIn(BaseModel):
     """门户分类块顺序：分类名列表（去空白、去重、丢弃空串——"未分类"不参与排序，永远最后）。"""
     order: list[Annotated[str, Field(max_length=50)]] = Field(default_factory=list, max_length=100)
@@ -229,7 +255,11 @@ async def my_modules(auth: AuthInfo = Depends(require_auth)):
         m for m in db.list_modules()
         if m["enabled"] and requires_visible(m["requires"], auth.permissions)
     ]
-    return {"modules": visible, "category_order": db.get_category_order()}
+    return {
+        "modules": visible,
+        "category_order": db.get_category_order(),
+        "category_colors": db.get_category_colors(),
+    }
 
 
 @app.get("/api/favorites")
@@ -321,6 +351,21 @@ async def admin_set_category_order(
     order = db.set_category_order(body.order)
     db.log_action(_actor(auth), "reorder", "category", detail={"order": order})
     return {"order": order}
+
+
+@app.get("/api/admin/category-colors")
+async def admin_get_category_colors(auth: AuthInfo = Depends(require_permission(PORTAL_MANAGE_PERMISSION))):
+    return {"colors": db.get_category_colors()}
+
+
+@app.put("/api/admin/category-colors")
+async def admin_set_category_colors(
+    body: CategoryColorsIn, auth: AuthInfo = Depends(require_permission(PORTAL_MANAGE_PERMISSION))
+):
+    """整表替换：只存显式选过色的分类；没存的分类前端按名字哈希取默认色。"""
+    colors = db.set_category_colors(body.colors)
+    db.log_action(_actor(auth), "update", "category", detail={"colors": colors})
+    return {"colors": colors}
 
 
 @app.get("/api/admin/permissions")

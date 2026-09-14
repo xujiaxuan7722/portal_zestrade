@@ -241,35 +241,19 @@ const CAT_ICONS = {
 };
 const GRID_ICON = '<rect x="2" y="2" width="5" height="5" rx="1"/><rect x="9" y="2" width="5" height="5" rx="1"/><rect x="2" y="9" width="5" height="5" rx="1"/><rect x="9" y="9" width="5" height="5" rx="1"/>';
 const STAR_ICON = '<path d="M8 1.8l1.9 3.9 4.3.6-3.1 3 .7 4.3L8 11.6l-3.8 2 .7-4.3-3.1-3 4.3-.6z"/>';
-const GRADS = [
-  'linear-gradient(140deg,#5793f8,#2e6ae8)',
-  'linear-gradient(140deg,#43d492,#1fae6e)',
-  'linear-gradient(140deg,#f9b04e,#f28c1c)',
-  'linear-gradient(140deg,#a98cf8,#7e5ce8)',
-  'linear-gradient(140deg,#f7c24b,#eda01f)',
-  'linear-gradient(140deg,#f88a7a,#ee5a45)',
-  'linear-gradient(140deg,#3fd0d9,#18a7b3)',
-  'linear-gradient(140deg,#6f7ef5,#4653e0)',
-];
-
 function svg16(inner) {
   return `<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">${inner}</svg>`;
 }
 
-/* 图标渐变按模块在 allModules 里的位次分配，跨视图保持稳定 */
-function gradOf(m) {
-  const i = allModules.findIndex(x => x.id === m.id);
-  return GRADS[(i < 0 ? 0 : i) % GRADS.length];
-}
+let categoryColors = {};   // 分类底色（/api/modules 的 category_colors），同分类同色
 
 function tileHTML(m) {
-  const icon = iconContent(m, 22);
   const faved = favIds.includes(m.id);
   const maint = m.status === 'maintenance' ? '<em class="maint">维护中</em>' : '';
   const owner = m.owner_name
     ? `<span class="owner-line">负责人：${esc(m.owner_name)}</span>` : '';
   return `<a class="acard" href="${esc(m.url)}" target="_blank" rel="noopener">
-    <span class="ic" style="background:${gradOf(m)}">${icon}</span>
+    ${badgeHTML(m, categoryColors, 48)}
     <div><b title="${esc(m.name)}">${esc(m.name)}${maint}</b><span title="${esc(m.description)}">${esc(m.description)}</span>${owner}</div>
     <button class="fav-btn ${faved ? 'faved' : ''}" data-fav="${m.id}"
       title="${faved ? '取消常用' : '设为常用'}">${faved ? '★' : '☆'}</button>
@@ -376,6 +360,7 @@ document.getElementById('q').addEventListener('input', render);
     ]);
     allModules = mods.modules;
     categoryOrder = mods.category_order || [];
+    categoryColors = mods.category_colors || {};
     favIds = favs.ids;
     anns = annsResp.announcements;
     renderBanners();

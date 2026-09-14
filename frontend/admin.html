@@ -38,9 +38,13 @@
   tr.row.dragging { opacity: .4; }
   tr.row.drag-over td { border-top: 2px solid var(--blue); }
   .drag-handle { cursor: grab; color: #a4b0c8; user-select: none; font-size: 17px; padding: 4px; }
-  .mod-icon { font-size: 22px; color: #45557a; }
-  .mod-icon img { width: 22px; height: 22px; object-fit: contain; vertical-align: middle; }
-  .mod-icon svg { vertical-align: middle; }
+  /* 图标列：与门户磁贴同一份渐变徽标（badgeHTML），只是尺寸 40px */
+  .mod-icon .ic {
+    width: 40px; height: 40px; border-radius: 11px; font-size: 20px; color: #fff;
+    display: grid; place-items: center;
+  }
+  .mod-icon .ic img { width: 22px; height: 22px; object-fit: contain; }
+  .mod-icon .ic svg { display: block; }
   .mod-name { font-weight: 600; font-size: 16px; color: var(--ink-strong); }
   .mod-url { color: var(--dim); font-size: 14.5px; max-width: 260px; overflow: hidden;
              text-overflow: ellipsis; white-space: nowrap; }
@@ -187,6 +191,17 @@
   .cat-list li.drag-over { border-color: var(--blue); }
   .cat-list li.fixed { cursor: default; color: var(--dim); background: #fff; border-style: dashed; }
   .cat-list .n { color: var(--dim); font-size: 14px; margin-left: auto; }
+  .cat-list .prev {
+    width: 26px; height: 26px; border-radius: 7px; color: #fff; flex: none;
+    display: grid; place-items: center; font-size: 12px;
+  }
+  .swatches { display: flex; gap: 5px; margin-left: 10px; }
+  .sw {
+    width: 18px; height: 18px; border-radius: 50%; border: 2px solid transparent; cursor: pointer; padding: 0;
+    outline: 2px solid transparent; outline-offset: 1px; transition: transform .12s;
+  }
+  .sw:hover { transform: scale(1.15); }
+  .sw.on { outline-color: var(--ink-strong); }
   .audit-foot { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 20px 16px; font-size: 14px; color: var(--dim); }
   .pagefoot { text-align: center; font-size: 13.5px; color: #6d7d9c; padding: 26px 0 2px; letter-spacing: .06em; }
   .pagefoot .paw { width: 1em; height: 1em; vertical-align: -0.12em; margin: 0 2px; }
@@ -271,7 +286,7 @@
         <table id="modTable">
           <thead>
             <tr>
-              <th style="width:36px"></th><th style="width:44px">图标</th><th style="width:280px">名称 / 描述</th>
+              <th style="width:36px"></th><th style="width:64px">图标</th><th style="width:280px">名称 / 描述</th>
               <th style="width:120px">分类</th>
               <th style="width:220px">跳转地址</th><th>可见权限</th><th style="width:104px">接入时间</th>
               <th style="width:76px">状态</th><th style="width:120px">操作</th>
@@ -496,9 +511,9 @@
 <!-- 分类顺序弹窗 -->
 <div class="overlay" id="catOverlay">
   <div class="modal">
-    <h2>门户分类块顺序</h2>
-    <div class="modal-sub">拖拽调整门户首页各分类块的先后。默认按分类名拼音排序；保存后按这里的顺序，
-      以后新出现的分类按拼音接在末尾，"未分类"永远最后。</div>
+    <h2>分类顺序与颜色</h2>
+    <div class="modal-sub">拖拽调整门户首页各分类块的先后（默认按分类名拼音，"未分类"永远最后）；
+      点色点给分类选底色，同一分类下所有应用的图标底色相同，门户与后台一致。</div>
     <ul class="cat-list" id="catList"></ul>
     <div class="modal-actions">
       <button class="btn" id="catResetBtn" title="清除自定义顺序，恢复按拼音排序">恢复拼音默认</button>
@@ -517,6 +532,7 @@ let modules = [];
 let editingId = null;   // null = 新增
 let orderDirty = false;
 let categoryOrder = [];   // 门户分类块自定义顺序（/api/admin/category-order）；空 = 纯拼音
+let categoryColors = {};  // 分类底色（/api/admin/category-colors）；未配置按名字哈希默认色
 
 /* 分类顺序：与门户 index.html 同一规则——已配置的在前，其余按拼音，"未分类"最后 */
 const zhCollator = new Intl.Collator('zh-Hans-CN');
@@ -573,7 +589,7 @@ function toast(msg) {
 
 /* ── 列表渲染 + 拖拽排序 ── */
 function rowHTML(m, draggable) {
-  const icon = iconContent(m, 20);
+  const icon = badgeHTML(m, categoryColors, 40);
   const reqs = m.requires.length
     ? m.requires.map(r => `<span class="chip">${esc(r)}</span>`).join('')
     : '<span class="chip all">所有登录用户</span>';
@@ -651,13 +667,23 @@ document.getElementById('mfReset').addEventListener('click', () => {
 });
 
 /* ── 门户分类块顺序弹窗 ── */
+let draftColors = {};   // 弹窗内的选色草稿，保存时整表提交
+
+function swatchesHTML(cat) {
+  const cur = colorKeyOf(cat, draftColors);
+  return `<span class="prev" style="background:${PALETTE[cur].css}">${esc(cat.slice(0, 1))}</span>
+    <span class="swatches">${PALETTE_KEYS.map(k =>
+      `<button type="button" class="sw ${k === cur ? 'on' : ''}" data-cat="${esc(cat)}" data-color="${k}"
+        title="${PALETTE[k].name}" style="background:${PALETTE[k].css}"></button>`).join('')}</span>`;
+}
+
 function renderCatList(order) {
   const counts = {};
   modules.forEach(m => { counts[catOf(m)] = (counts[catOf(m)] || 0) + 1; });
   const ul = document.getElementById('catList');
   ul.innerHTML = order.map(c => `<li draggable="true" data-cat="${esc(c)}">
-      <span class="drag-handle">⠿</span>${esc(c)}<span class="n">${counts[c] || 0} 个应用</span></li>`).join('')
-    + (counts['未分类'] ? `<li class="fixed">未分类<span class="n">${counts['未分类']} 个应用 · 固定最后</span></li>` : '');
+      <span class="drag-handle">⠿</span>${swatchesHTML(c)}${esc(c)}<span class="n">${counts[c] || 0} 个应用</span></li>`).join('')
+    + (counts['未分类'] ? `<li class="fixed">${swatchesHTML('未分类')}未分类<span class="n">${counts['未分类']} 个应用 · 固定最后</span></li>` : '');
   let dragLi = null;
   ul.querySelectorAll('li[draggable="true"]').forEach(li => {
     li.addEventListener('dragstart', () => { dragLi = li; li.classList.add('dragging'); });
@@ -673,8 +699,18 @@ function renderCatList(order) {
   });
 }
 
+document.getElementById('catList').addEventListener('click', (e) => {
+  const sw = e.target.closest('.sw');
+  if (!sw) return;
+  draftColors[sw.dataset.cat] = sw.dataset.color;
+  const li = sw.closest('li');
+  li.querySelector('.prev').style.background = PALETTE[sw.dataset.color].css;
+  li.querySelectorAll('.sw').forEach(b => b.classList.toggle('on', b === sw));
+});
+
 document.getElementById('catOrderBtn').addEventListener('click', () => {
   const present = [...new Set(modules.map(catOf))];
+  draftColors = { ...categoryColors };
   renderCatList(sortedCategories(present).filter(c => c !== '未分类'));
   document.getElementById('catOverlay').classList.add('open');
 });
@@ -688,6 +724,13 @@ document.getElementById('catResetBtn').addEventListener('click', () => {
 async function saveCategoryOrder(order) {
   const data = await fetchJSON('/api/admin/category-order', { method: 'PUT', body: JSON.stringify({ order }) });
   categoryOrder = data.order;
+  // 颜色只存现有分类里显式选过的；等于默认色的也存，保证以后哈希规则变了颜色不变
+  const present = new Set(modules.map(catOf));
+  const colors = Object.fromEntries(Object.entries(draftColors).filter(([c]) => present.has(c)));
+  if (JSON.stringify(colors) !== JSON.stringify(categoryColors)) {
+    const cd = await fetchJSON('/api/admin/category-colors', { method: 'PUT', body: JSON.stringify({ colors }) });
+    categoryColors = cd.colors;
+  }
   renderCatSelect();
   renderTable();
 }
@@ -699,7 +742,7 @@ document.getElementById('catSaveBtn').addEventListener('click', async () => {
   try {
     await saveCategoryOrder(isDefault ? [] : order);
     document.getElementById('catOverlay').classList.remove('open');
-    toast(isDefault ? '已恢复按拼音排序' : '分类顺序已保存');
+    toast(isDefault ? '已保存（顺序为拼音默认）' : '分类顺序与颜色已保存');
   } catch (e) { toast('保存失败：' + e.message); }
 });
 
@@ -1172,12 +1215,14 @@ document.getElementById('auditMoreBtn').addEventListener('click', async () => {
 
 /* ── 初始化 ── */
 async function loadModules() {
-  const [mods, order] = await Promise.all([
+  const [mods, order, colors] = await Promise.all([
     fetchJSON('/api/admin/modules'),
     fetchJSON('/api/admin/category-order').catch(() => ({ order: [] })),
+    fetchJSON('/api/admin/category-colors').catch(() => ({ colors: {} })),
   ]);
   modules = mods.modules;
   categoryOrder = order.order || [];
+  categoryColors = colors.colors || {};
   renderCatSelect();
   renderTable();
 }
