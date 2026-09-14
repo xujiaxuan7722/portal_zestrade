@@ -458,7 +458,7 @@
     <div class="field">
       <label>公告内容 *</label>
       <textarea id="aContent" rows="2" maxlength="200" placeholder="例如：ERP 系统今晚 22:00-24:00 维护，请提前保存数据"></textarea>
-      <div class="hint" id="aCount">0 / 200 字 · 横幅只有一行，建议 60 字以内</div>
+      <div class="hint" id="aCount">0 / 200 字</div>
     </div>
     <div class="row2">
       <div class="field">
@@ -1080,7 +1080,7 @@ function renderAnnTable() {
 function renderAnnCount() {
   const n = [...document.getElementById('aContent').value].length;   // 按字符数（含中文）计
   const el = document.getElementById('aCount');
-  el.textContent = n >= 200 ? '200 / 200 字 · 已达上限' : `${n} / 200 字 · 横幅只有一行，建议 60 字以内`;
+  el.textContent = n >= 200 ? '200 / 200 字 · 已达上限' : `${n} / 200 字`;
   el.className = 'hint' + (n >= 200 ? ' full' : n >= 180 ? ' near' : '');
 }
 document.getElementById('aContent').addEventListener('input', renderAnnCount);
