@@ -97,6 +97,8 @@
   }
   .row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
   .field .hint { font-size: 14px; color: var(--dim); margin-top: 6px; }
+  .field .hint.near { color: #c2701a; }
+  .field .hint.full { color: #d8433a; font-weight: 600; }
   /* 图标：点选内置图标网格 + 自由输入（URL/emoji 兼容） */
   .icon-grid {
     display: grid; grid-template-columns: repeat(auto-fill, minmax(38px, 1fr));
@@ -456,6 +458,7 @@
     <div class="field">
       <label>公告内容 *</label>
       <textarea id="aContent" rows="2" maxlength="200" placeholder="例如：ERP 系统今晚 22:00-24:00 维护，请提前保存数据"></textarea>
+      <div class="hint" id="aCount">0 / 200 字 · 横幅只有一行，建议 60 字以内</div>
     </div>
     <div class="row2">
       <div class="field">
@@ -1073,6 +1076,15 @@ function renderAnnTable() {
   }).join('');
 }
 
+/* 公告内容字数提示：maxlength 已硬限 200，这里只做可见计数 */
+function renderAnnCount() {
+  const n = [...document.getElementById('aContent').value].length;   // 按字符数（含中文）计
+  const el = document.getElementById('aCount');
+  el.textContent = n >= 200 ? '200 / 200 字 · 已达上限' : `${n} / 200 字 · 横幅只有一行，建议 60 字以内`;
+  el.className = 'hint' + (n >= 200 ? ' full' : n >= 180 ? ' near' : '');
+}
+document.getElementById('aContent').addEventListener('input', renderAnnCount);
+
 function openAnnModal(title, a) {
   document.getElementById('annModalTitle').textContent = title;
   document.getElementById('aContent').value = a?.content || '';
@@ -1081,6 +1093,7 @@ function openAnnModal(title, a) {
   document.getElementById('aEnd').value = toLocalInput(a?.ends_at);
   document.getElementById('aEnabled').checked = a ? a.enabled : true;
   annPerms.open(a?.requires);
+  renderAnnCount();
   document.getElementById('annOverlay').classList.add('open');
 }
 
