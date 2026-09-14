@@ -197,7 +197,6 @@
     <div class="wrap">
       <div class="page-h">
         <h1 id="greetTitle">个人工作台</h1>
-        <span class="sub" id="cntLine">按你的权限展示</span>
       </div>
 
       <div class="banners" id="banners"></div>
@@ -327,7 +326,7 @@ function renderWorkbench(list) {
     }).join('');
   }
   const secHead = `<div class="sec-h"><span class="hic">${svg16(GRID_ICON)}</span>全部应用
-    <span class="ct">${list.length} 个应用 · 按分类展示</span></div>`;
+    <span class="ct">共 ${list.length} 个应用 · 按你的权限分类展示</span></div>`;
   document.getElementById('panels').innerHTML =
     cardHTML(STAR_ICON, '我的常用应用', favs.length ? `${favs.length} 个 · 点星标增减` : '自定义', favGrid) +
     secHead + catCards;
@@ -339,8 +338,6 @@ function render() {
   const q = document.getElementById('q').value.trim().toLowerCase();
   let list = allModules;
   if (q) list = list.filter(m => (m.name + m.description + (m.category || '')).toLowerCase().includes(q));
-  document.getElementById('cntLine').textContent =
-    `共 ${list.length} 个应用 · 按你的权限展示`;
   renderWorkbench(list);
 }
 
