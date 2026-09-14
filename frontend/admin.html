@@ -309,7 +309,7 @@
         </div>
       </div>
 
-      <!-- 横幅公告管理（可折叠；库里最多 50 条，超出新增时自动删最早失效的） -->
+      <!-- 横幅公告管理（可折叠；与审计同一套游标分页 + 服务端筛选，每次 50 条） -->
       <div class="card audit-card" style="margin-top:20px">
         <div class="card-head ann-head" id="annHead">
           <button class="audit-toggle ann-toggle" id="annToggle" aria-expanded="true" aria-controls="annBody" style="padding:0;flex:1;display:flex;align-items:center;justify-content:space-between">
@@ -319,7 +319,7 @@
           <button class="btn" id="addAnnBtn" style="margin-left:14px">＋ 新增公告</button>
         </div>
         <div id="annBody">
-          <form class="audit-filter" id="annFilter" onsubmit="return false">
+          <form class="audit-filter" id="annFilter">
             <select id="anfStatus" aria-label="状态">
               <option value="live">生效中 + 待生效</option>
               <option value="active">生效中</option>
@@ -332,8 +332,8 @@
             <input type="date" id="anfSince" aria-label="起始日期">
             <span class="audit-dash">至</span>
             <input type="date" id="anfUntil" aria-label="截止日期">
+            <button type="submit" class="btn primary">查询</button>
             <button type="button" class="btn" id="anfReset">清空</button>
-            <span class="mf-hint" id="annHint"></span>
           </form>
           <div class="tbl-wrap">
           <table id="annTable" style="table-layout:fixed;min-width:1100px">
@@ -346,6 +346,10 @@
             </thead>
             <tbody id="annTbody"></tbody>
           </table>
+          </div>
+          <div class="audit-foot">
+            <span id="annCount"></span>
+            <button class="btn" id="annMoreBtn" hidden>加载更早的 50 条</button>
           </div>
         </div>
       </div>
@@ -1089,37 +1093,29 @@ function annStatus(a, now = new Date()) {
   return 'active';
 }
 
-function filteredAnns() {
-  const st = document.getElementById('anfStatus').value;
-  const q = document.getElementById('anfQ').value.trim().toLowerCase();
-  const since = document.getElementById('anfSince').value;
-  const until = document.getElementById('anfUntil').value;
-  return anns.filter(a => {
-    const s = annStatus(a);
-    if (st === 'live' ? !(s === 'active' || s === 'pending') : st !== 'all' && s !== st) return false;
-    if (q && !(a.content + ' ' + (a.requires || []).join(' ')).toLowerCase().includes(q)) return false;
-    const day = (a.created_at || '').slice(0, 10);
-    if (since && day && day < since) return false;
-    if (until && day && day > until) return false;
-    return true;
-  });
+/* 公告分页状态（与审计同款）：当前筛选 + 游标 + 已加载条数；anns 为已加载的累计列表（编辑弹窗按 id 查） */
+const ANN_PAGE = 50;
+const annState = { nextBeforeId: null, count: 0, total: 0 };
+
+function annQuery(beforeId) {
+  const q = new URLSearchParams({ limit: ANN_PAGE });
+  const v = id => document.getElementById(id).value.trim();
+  if (v('anfStatus') && v('anfStatus') !== 'all') q.set('status', v('anfStatus'));
+  if (v('anfQ')) q.set('q', v('anfQ'));
+  if (v('anfSince')) q.set('since', v('anfSince'));
+  if (v('anfUntil')) q.set('until', v('anfUntil'));
+  if (beforeId) q.set('before_id', beforeId);
+  return '/api/admin/announcements?' + q.toString();
 }
 
-function renderAnnTable() {
+function renderAnnTable(list, append = false) {
   const tbody = document.getElementById('annTbody');
-  const counts = { active: 0, pending: 0, expired: 0, disabled: 0 };
-  anns.forEach(a => counts[annStatus(a)]++);
-  document.getElementById('annSub').textContent =
-    `生效中 ${counts.active} · 待生效 ${counts.pending} · 共 ${anns.length} / 50 条`;
-  const list = filteredAnns();
-  document.getElementById('annHint').textContent =
-    `显示 ${list.length} / ${anns.length} 条 · 库里最多保留 50 条，超出时新增会自动删除最早失效的`;
-  if (!list.length) {
+  if (!list.length && !append) {
     tbody.innerHTML = `<tr><td colspan="7" style="text-align:center;color:var(--dim);padding:26px">
-      ${anns.length ? '没有符合条件的公告' : '暂无公告 · 适合发维护通知、新系统上线提醒，显示在门户顶部'}</td></tr>`;
+      ${annState.total ? '没有符合条件的公告' : '暂无公告 · 适合发维护通知、新系统上线提醒，显示在门户顶部'}</td></tr>`;
     return;
   }
-  tbody.innerHTML = list.map(a => {
+  const html = list.map(a => {
     const s = annStatus(a);
     const reqs = a.requires.length
       ? a.requires.map(r => `<span class="chip">${esc(r)}</span>`).join('')
@@ -1140,6 +1136,7 @@ function renderAnnTable() {
           <button class="row-btn del" onclick="removeAnn(${a.id})">删除</button></td>
     </tr>`;
   }).join('');
+  if (append) tbody.insertAdjacentHTML('beforeend', html); else tbody.innerHTML = html;
 }
 
 /* 公告区折叠（默认展开；折叠状态记本机） */
@@ -1152,14 +1149,19 @@ function setAnnOpen(open) {
 document.getElementById('annToggle').addEventListener('click', () =>
   setAnnOpen(document.getElementById('annToggle').getAttribute('aria-expanded') !== 'true'));
 try { if (localStorage.getItem('annOpen') === '0') setAnnOpen(false); } catch {}
-['anfStatus', 'anfQ', 'anfSince', 'anfUntil'].forEach(id =>
-  document.getElementById(id).addEventListener('input', renderAnnTable));
-document.getElementById('anfReset').addEventListener('click', () => {
+document.getElementById('annFilter').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  try { await loadAnns(); } catch (err) { toast('查询失败：' + (err.detail || err.message)); }
+});
+document.getElementById('anfReset').addEventListener('click', async () => {
   document.getElementById('anfStatus').value = 'live';
   document.getElementById('anfQ').value = '';
   document.getElementById('anfSince').value = '';
   document.getElementById('anfUntil').value = '';
-  renderAnnTable();
+  try { await loadAnns(); } catch (err) { toast('加载失败：' + err.message); }
+});
+document.getElementById('annMoreBtn').addEventListener('click', async () => {
+  try { await loadAnns(true); } catch (err) { toast('加载失败：' + err.message); }
 });
 
 /* 公告内容字数提示：maxlength 已硬限 200，这里只做可见计数 */
@@ -1231,9 +1233,19 @@ window.removeAnn = async (id) => {
   } catch (e) { toast('删除失败：' + e.message); }
 };
 
-async function loadAnns() {
-  anns = (await fetchJSON('/api/admin/announcements')).announcements;
-  renderAnnTable();
+async function loadAnns(more = false) {
+  const data = await fetchJSON(annQuery(more ? annState.nextBeforeId : null));
+  anns = more ? [...anns, ...data.announcements] : data.announcements;
+  renderAnnTable(data.announcements, more);
+  annState.nextBeforeId = data.next_before_id;
+  annState.count = (more ? annState.count : 0) + data.announcements.length;
+  annState.total = data.counts.total;
+  const c = data.counts;
+  document.getElementById('annSub').textContent =
+    `生效中 ${c.active} · 待生效 ${c.pending} · 已过期 ${c.expired} · 已停用 ${c.disabled} · 共 ${c.total} 条`;
+  document.getElementById('annCount').textContent =
+    annState.count ? `已显示 ${annState.count} 条${data.next_before_id ? '，还有更早的记录' : '，已到最早一条'}` : '';
+  document.getElementById('annMoreBtn').hidden = !data.next_before_id;
 }
 
 /* ── 操作审计（只读，最近 100 条）── */

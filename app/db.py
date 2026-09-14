@@ -257,42 +257,70 @@ def _row_to_announcement(row: dict) -> dict:
     }
 
 
-ANNOUNCEMENT_CAP = 50   # 库里最多保留的公告条数；超出时自动删除（见 select_prunable）
-
-
-def select_prunable(anns: list[dict], cap: int = ANNOUNCEMENT_CAP, now: Optional[datetime] = None) -> list[int]:
-    """超过 cap 时该删哪些：先删"已失效"的（已过期 / 已停用），再删其余里最早的，
-    每组内都按 id 从小到大（越早越先删）。返回要删的 id 列表。纯函数，便于测试。"""
-    if len(anns) <= cap:
-        return []
-    now = now or datetime.now(timezone.utc)
-
-    def dead(a: dict) -> bool:
-        ends = a.get("ends_at")
-        if isinstance(ends, str):
-            ends = datetime.fromisoformat(ends)
-        return (not a.get("enabled", True)) or (ends is not None and ends < now)
-
-    ordered = sorted(anns, key=lambda a: (0 if dead(a) else 1, a["id"]))
-    return [a["id"] for a in ordered[: len(anns) - cap]]
-
-
-def prune_announcements(cap: int = ANNOUNCEMENT_CAP) -> list[int]:
-    """把公告总数压到 cap 以内，返回被删的 id。"""
-    ids = select_prunable(list_announcements(), cap)
-    if ids:
-        with pool().connection() as conn:
-            conn.execute("DELETE FROM announcements WHERE id = ANY(%s)", (ids,))
-    return ids
-
-
 def list_announcements() -> list[dict]:
-    """全部公告（管理后台用）。"""
+    """全部公告（不分页；测试与内部用）。"""
     with pool().connection() as conn:
         rows = conn.execute(
             "SELECT * FROM announcements ORDER BY id DESC"
         ).fetchall()
     return [_row_to_announcement(r) for r in rows]
+
+
+# 公告状态（按 now() 推算）：已停用 > 待生效 > 已过期 > 生效中
+ANN_STATUS_SQL = {
+    "disabled": "NOT enabled",
+    "pending": "enabled AND starts_at IS NOT NULL AND starts_at > now()",
+    "expired": "enabled AND (starts_at IS NULL OR starts_at <= now()) AND ends_at IS NOT NULL AND ends_at < now()",
+    "active": "enabled AND (starts_at IS NULL OR starts_at <= now()) AND (ends_at IS NULL OR ends_at >= now())",
+}
+ANN_STATUS_SQL["live"] = f"(({ANN_STATUS_SQL['active']}) OR ({ANN_STATUS_SQL['pending']}))"
+
+
+def announcement_filters(
+    status: Optional[str] = None,
+    q: Optional[str] = None,
+    since: Optional[datetime] = None,
+    until: Optional[datetime] = None,
+    before_id: Optional[int] = None,
+) -> tuple[list[str], list]:
+    """后台公告列表的 WHERE 片段与参数（纯函数，便于测试）。
+    status ∈ live/active/pending/expired/disabled，其他值或空 = 全部；
+    q 对内容模糊匹配；since <= created_at < until；before_id 为游标。"""
+    where, params = [], []
+    if before_id is not None:
+        where.append("id < %s"); params.append(before_id)
+    if status in ANN_STATUS_SQL:
+        where.append(f"({ANN_STATUS_SQL[status]})")
+    if q:
+        where.append("content ILIKE %s"); params.append(f"%{q}%")
+    if since is not None:
+        where.append("created_at >= %s"); params.append(since)
+    if until is not None:
+        where.append("created_at < %s"); params.append(until)
+    return where, params
+
+
+def list_announcements_page(limit: int = 50, **filters) -> list[dict]:
+    """按 id 倒序取一页公告（管理后台用），参数见 announcement_filters。"""
+    where, params = announcement_filters(**filters)
+    sql = "SELECT * FROM announcements"
+    if where:
+        sql += " WHERE " + " AND ".join(where)
+    sql += " ORDER BY id DESC LIMIT %s"
+    params.append(limit)
+    with pool().connection() as conn:
+        rows = conn.execute(sql, params).fetchall()
+    return [_row_to_announcement(r) for r in rows]
+
+
+def count_announcements() -> dict[str, int]:
+    """各状态条数（后台折叠头用）。"""
+    sql = "SELECT count(*) AS total, " + ", ".join(
+        f"count(*) FILTER (WHERE {ANN_STATUS_SQL[k]}) AS {k}" for k in ("active", "pending", "expired", "disabled")
+    ) + " FROM announcements"
+    with pool().connection() as conn:
+        r = conn.execute(sql).fetchone()
+    return {k: int(r[k]) for k in ("total", "active", "pending", "expired", "disabled")}
 
 
 def list_active_announcements() -> list[dict]:

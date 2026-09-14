@@ -7,7 +7,7 @@ main.py — ZesTrade 企业门户后端
   GET  /api/favorites               我的常用应用 id 列表（登录即可）
   PUT  /api/favorites               保存我的常用应用（整表替换，顺序即列表顺序）
   GET  /api/announcements           当前生效的横幅公告（按权限码过滤，规则同应用）
-  GET/POST/PUT/DEL /api/admin/announcements[/{id}]  公告管理（库里最多 50 条，新增超出自动删最早失效的）
+  GET/POST/PUT/DEL /api/admin/announcements[/{id}]  公告管理（GET 分页：before_id 游标；筛选 status/q/since/until；附各状态计数）
   GET  /api/admin/audit             管理操作审计（分页：before_id 游标；筛选：actor/action/target_type/since/until）
   GET  /api/admin/modules           全部模块
   POST /api/admin/modules           新增模块
@@ -293,6 +293,21 @@ async def my_announcements(auth: AuthInfo = Depends(require_auth)):
 # ============================================================
 
 
+AUDIT_PAGE_MAX = 200
+
+
+def _parse_day(value: Optional[str], name: str) -> Optional[datetime]:
+    """审计筛选的日期参数：YYYY-MM-DD，解析失败 400。"""
+    if not value:
+        return None
+    try:
+        return datetime.strptime(value, "%Y-%m-%d")
+    except ValueError:
+        raise HTTPException(status_code=400, detail=f"{name} 须为 YYYY-MM-DD")
+
+
+
+
 @app.get("/api/admin/modules")
 async def admin_list_modules(auth: AuthInfo = Depends(require_permission(PORTAL_MANAGE_PERMISSION))):
     return {"modules": db.list_modules()}
@@ -437,8 +452,30 @@ async def admin_delete_custom_require(
 
 
 @app.get("/api/admin/announcements")
-async def admin_list_announcements(auth: AuthInfo = Depends(require_permission(PORTAL_MANAGE_PERMISSION))):
-    return {"announcements": db.list_announcements()}
+async def admin_list_announcements(
+    limit: int = 50,
+    before_id: Optional[int] = None,
+    status: Optional[str] = None,
+    q: Optional[str] = None,
+    since: Optional[str] = None,
+    until: Optional[str] = None,
+    auth: AuthInfo = Depends(require_permission(PORTAL_MANAGE_PERMISSION)),
+):
+    """公告分页：与审计同一套——按 id 倒序，游标 before_id 取更早一页，
+    返回 next_before_id 为 None 表示没有更多；counts 为库里各状态总数（不受筛选影响）。"""
+    page = min(max(limit, 1), AUDIT_PAGE_MAX)
+    until_dt = _parse_day(until, "until")
+    if until_dt is not None:
+        until_dt = until_dt.replace(hour=0, minute=0) + timedelta(days=1)
+    anns = db.list_announcements_page(
+        page, before_id=before_id, status=status or None, q=(q or "").strip() or None,
+        since=_parse_day(since, "since"), until=until_dt,
+    )
+    return {
+        "announcements": anns,
+        "next_before_id": anns[-1]["id"] if len(anns) == page else None,
+        "counts": db.count_announcements(),
+    }
 
 
 @app.post("/api/admin/announcements")
@@ -448,11 +485,6 @@ async def admin_create_announcement(
     created = db.create_announcement(body.model_dump())
     db.log_action(_actor(auth), "create", "announcement", created["id"],
                   {"content": created["content"]})
-    # 库里最多保留 ANNOUNCEMENT_CAP 条：超出时自动删最早失效的，记一条汇总审计
-    pruned = db.prune_announcements()
-    if pruned:
-        db.log_action(_actor(auth), "delete", "announcement", "auto",
-                      {"auto": True, "cap": db.ANNOUNCEMENT_CAP, "ids": pruned})
     return created
 
 
@@ -476,19 +508,6 @@ async def admin_delete_announcement(
         raise HTTPException(status_code=404, detail="Announcement not found")
     db.log_action(_actor(auth), "delete", "announcement", ann_id)
     return {"ok": True}
-
-
-AUDIT_PAGE_MAX = 200
-
-
-def _parse_day(value: Optional[str], name: str) -> Optional[datetime]:
-    """审计筛选的日期参数：YYYY-MM-DD，解析失败 400。"""
-    if not value:
-        return None
-    try:
-        return datetime.strptime(value, "%Y-%m-%d")
-    except ValueError:
-        raise HTTPException(status_code=400, detail=f"{name} 须为 YYYY-MM-DD")
 
 
 @app.get("/api/admin/audit")
