@@ -171,6 +171,9 @@
   .mf-hint { font-size: 14px; color: var(--dim); }
   .mf-hint b { color: #c2701a; font-weight: 600; }
   table.drag-off .drag-handle { visibility: hidden; }
+  /* 模块表固定列宽：各列宽度由表头 width 决定，与内容多少无关（权限码多也只在本列内换行） */
+  #modTable { table-layout: fixed; min-width: 1180px; }
+  #modTable td { overflow-wrap: anywhere; }
   tr.grp td { background: #f4f7fc; color: #45557a; font-weight: 700; font-size: 14.5px; padding: 8px 14px; }
   .mod-time { color: var(--dim); font-size: 14.5px; white-space: nowrap; }
   .btn:disabled { opacity: .45; cursor: not-allowed; box-shadow: none; }
@@ -256,11 +259,10 @@
           <input type="search" id="mfQ" placeholder="搜索名称 / 描述 / 地址 / 权限码 / 负责人" autocomplete="off">
           <select id="mfCat" aria-label="分类"><option value="">全部分类</option></select>
           <select id="mfSort" aria-label="排序">
-            <option value="manual">手动排序（可拖拽）</option>
+            <option value="category">按分类（默认）</option>
             <option value="created_desc">接入时间：新 → 旧</option>
             <option value="created_asc">接入时间：旧 → 新</option>
             <option value="updated_desc">最近修改在前</option>
-            <option value="category">按分类分组</option>
           </select>
           <button type="button" class="btn" id="mfReset">清空</button>
           <span class="mf-hint" id="mfHint"></span>
@@ -269,9 +271,9 @@
         <table id="modTable">
           <thead>
             <tr>
-              <th style="width:36px"></th><th style="width:44px">图标</th><th>名称 / 描述</th>
+              <th style="width:36px"></th><th style="width:44px">图标</th><th style="width:280px">名称 / 描述</th>
               <th style="width:120px">分类</th>
-              <th>跳转地址</th><th>可见权限</th><th style="width:104px">接入时间</th>
+              <th style="width:220px">跳转地址</th><th>可见权限</th><th style="width:104px">接入时间</th>
               <th style="width:76px">状态</th><th style="width:120px">操作</th>
             </tr>
           </thead>
@@ -528,12 +530,13 @@ function fmtDate(iso) {
   return iso ? iso.slice(0, 10) : '—';
 }
 
-/* ── 模块表工具栏：搜索 / 分类 / 排序。三者任一非默认即"筛选态"：拖拽与保存排序关闭 ── */
+/* ── 模块表工具栏：搜索 / 分类 / 排序。默认 = 按分类分组（组内可拖拽调整门户里的先后，
+   不能跨组拖）；三者任一非默认即"筛选态"：拖拽与保存排序关闭 ── */
 const mf = {
   q: () => document.getElementById('mfQ').value.trim().toLowerCase(),
   cat: () => document.getElementById('mfCat').value,
   sort: () => document.getElementById('mfSort').value,
-  active() { return !!(this.q() || this.cat() || this.sort() !== 'manual'); },
+  active() { return !!(this.q() || this.cat() || this.sort() !== 'category'); },
 };
 
 function renderCatSelect() {
@@ -574,7 +577,7 @@ function rowHTML(m, draggable) {
   const reqs = m.requires.length
     ? m.requires.map(r => `<span class="chip">${esc(r)}</span>`).join('')
     : '<span class="chip all">所有登录用户</span>';
-  return `<tr class="row" draggable="${draggable}" data-id="${m.id}">
+  return `<tr class="row" draggable="${draggable}" data-id="${m.id}" data-cat="${esc(catOf(m))}">
       <td><span class="drag-handle" title="拖拽排序">⠿</span></td>
       <td class="mod-icon">${icon}</td>
       <td><div class="mod-name">${esc(m.name)}${m.status === 'maintenance' ? ' <span class="chip warn">维护中</span>' : ''}</div>
@@ -603,7 +606,7 @@ function renderTable() {
     tbody.innerHTML = cats.map(cat => {
       const mods = list.filter(m => catOf(m) === cat);
       return `<tr class="grp"><td colspan="9">${esc(cat)} <span style="font-weight:400;color:var(--dim)">· ${mods.length} 个</span></td></tr>`
-        + mods.map(m => rowHTML(m, false)).join('');
+        + mods.map(m => rowHTML(m, !active)).join('');
     }).join('');
   } else {
     tbody.innerHTML = list.map(m => rowHTML(m, !active)).join('');
@@ -627,7 +630,7 @@ function onFilterChange() {
   }
   renderTable();
 }
-let lastFilter = { q: '', cat: '', sort: 'manual' };
+let lastFilter = { q: '', cat: '', sort: 'category' };
 function renderFilterFromState() {
   document.getElementById('mfQ').value = lastFilter.q;
   document.getElementById('mfCat').value = lastFilter.cat;
@@ -642,8 +645,8 @@ function renderFilterFromState() {
 document.getElementById('mfReset').addEventListener('click', () => {
   document.getElementById('mfQ').value = '';
   document.getElementById('mfCat').value = '';
-  document.getElementById('mfSort').value = 'manual';
-  lastFilter = { q: '', cat: '', sort: 'manual' };
+  document.getElementById('mfSort').value = 'category';
+  lastFilter = { q: '', cat: '', sort: 'category' };
   renderTable();
 });
 
@@ -702,15 +705,19 @@ document.getElementById('catSaveBtn').addEventListener('click', async () => {
 
 let dragRow = null;
 function bindDrag() {
-  document.querySelectorAll('tr.row').forEach(row => {
+  document.querySelectorAll('#tbody tr.row').forEach(row => {
     row.addEventListener('dragstart', () => { dragRow = row; row.classList.add('dragging'); });
     row.addEventListener('dragend', () => { dragRow?.classList.remove('dragging'); dragRow = null; });
-    row.addEventListener('dragover', e => { e.preventDefault(); row.classList.add('drag-over'); });
+    row.addEventListener('dragover', e => {
+      e.preventDefault();
+      if (dragRow && dragRow.dataset.cat === row.dataset.cat) row.classList.add('drag-over');
+    });
     row.addEventListener('dragleave', () => row.classList.remove('drag-over'));
     row.addEventListener('drop', e => {
       e.preventDefault();
       row.classList.remove('drag-over');
       if (!dragRow || dragRow === row) return;
+      if (dragRow.dataset.cat !== row.dataset.cat) { toast('只能在同一分类内调整先后；改分类请用"编辑"'); return; }
       row.parentNode.insertBefore(dragRow, row);
       markOrderDirty();
     });
@@ -723,7 +730,7 @@ function markOrderDirty() {
 }
 
 document.getElementById('saveOrderBtn').addEventListener('click', async () => {
-  const ids = [...document.querySelectorAll('tr.row')].map(r => Number(r.dataset.id));
+  const ids = [...document.querySelectorAll('#tbody tr.row')].map(r => Number(r.dataset.id));
   try {
     await fetchJSON('/api/admin/modules/reorder', { method: 'PUT', body: JSON.stringify({ ids }) });
     orderDirty = false;
