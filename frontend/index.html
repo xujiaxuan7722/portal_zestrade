@@ -60,6 +60,16 @@
     display: grid; place-items: center;
   }
   .card-h .ct { font-size: 14px; color: var(--dim); font-weight: 400; }
+  /* 分节标题：把"我的常用应用"卡与下方按分类拆开的"全部应用"隔开 */
+  .sec-h {
+    display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+    margin: 26px 4px 6px; font-size: 19px; font-weight: 700; color: var(--ink-strong);
+  }
+  .sec-h .hic {
+    width: 26px; height: 26px; border-radius: 7px; flex: none;
+    background: var(--blue); color: #fff; display: grid; place-items: center;
+  }
+  .sec-h .ct { font-size: 14.5px; color: var(--dim); font-weight: 400; }
 
   /* 应用磁贴：模块卡内的浅蓝底小卡 */
   .agrid {
@@ -230,6 +240,7 @@ const CAT_ICONS = {
   '协同办公': '<rect x="2" y="3" width="12" height="8" rx="1.5"/><path d="M6 14h4M8 11v3"/>',
   '未分类':   '<path d="M2 4.5A1.5 1.5 0 0 1 3.5 3h3L8 5h4.5A1.5 1.5 0 0 1 14 6.5v5a1.5 1.5 0 0 1-1.5 1.5h-9A1.5 1.5 0 0 1 2 11.5z"/>',
 };
+const GRID_ICON = '<rect x="2" y="2" width="5" height="5" rx="1"/><rect x="9" y="2" width="5" height="5" rx="1"/><rect x="2" y="9" width="5" height="5" rx="1"/><rect x="9" y="9" width="5" height="5" rx="1"/>';
 const STAR_ICON = '<path d="M8 1.8l1.9 3.9 4.3.6-3.1 3 .7 4.3L8 11.6l-3.8 2 .7-4.3-3.1-3 4.3-.6z"/>';
 const GRADS = [
   'linear-gradient(140deg,#5793f8,#2e6ae8)',
@@ -315,9 +326,11 @@ function renderWorkbench(list) {
         `<div class="agrid">${mods.map(tileHTML).join('')}</div>`);
     }).join('');
   }
+  const secHead = `<div class="sec-h"><span class="hic">${svg16(GRID_ICON)}</span>全部应用
+    <span class="ct">${list.length} 个应用 · 按分类展示</span></div>`;
   document.getElementById('panels').innerHTML =
     cardHTML(STAR_ICON, '我的常用应用', favs.length ? `${favs.length} 个 · 点星标增减` : '自定义', favGrid) +
-    catCards;
+    secHead + catCards;
 }
 
 function render() {
