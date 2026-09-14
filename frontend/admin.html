@@ -156,6 +156,13 @@
   .forbidden .big { font-size: 46px; margin-bottom: 16px; }
   .forbidden a { color: var(--blue); }
   /* 操作审计：折叠头 + 筛选条 + 分页脚 */
+  .ann-toggle h2 { display: flex; align-items: center; }
+  .st { display: inline-block; font-size: 13.5px; font-weight: 600; padding: 3px 9px; border-radius: 999px; white-space: nowrap; }
+  .st.active { background: var(--ok-bg); color: var(--ok); }
+  .st.pending { background: var(--blue-bg); color: var(--blue); }
+  .st.expired { background: #f1f4f9; color: #7787a3; }
+  .st.disabled { background: #fff3e0; color: #c2701a; }
+  #annTable td { overflow-wrap: anywhere; }
   .audit-toggle { width: 100%; text-align: left; cursor: pointer; background: none; border: 0; font-family: inherit; padding-bottom: 18px; }
   .audit-toggle:hover h2 { color: var(--blue); }
   .audit-toggle[aria-expanded="true"] { padding-bottom: 4px; }
@@ -299,22 +306,44 @@
         </div>
       </div>
 
-      <!-- 横幅公告管理 -->
-      <div class="card" style="margin-top:20px">
-        <div class="card-head">
-          <h2>横幅公告</h2>
-          <button class="btn" id="addAnnBtn">＋ 新增公告</button>
+      <!-- 横幅公告管理（可折叠；库里最多 50 条，超出新增时自动删最早失效的） -->
+      <div class="card audit-card" style="margin-top:20px">
+        <div class="card-head" style="padding-right:20px">
+          <button class="audit-toggle ann-toggle" id="annToggle" aria-expanded="true" aria-controls="annBody" style="padding:0;flex:1;display:flex;align-items:center;justify-content:space-between">
+            <h2>横幅公告 <span class="audit-sub" id="annSub"></span></h2>
+            <span class="audit-caret" aria-hidden="true">▾</span>
+          </button>
+          <button class="btn" id="addAnnBtn" style="margin-left:14px">＋ 新增公告</button>
         </div>
-        <div class="tbl-wrap">
-        <table>
-          <thead>
-            <tr>
-              <th>内容</th><th style="width:72px">级别</th><th style="width:270px">生效时间</th>
-              <th>可见权限</th><th style="width:76px">状态</th><th style="width:120px">操作</th>
-            </tr>
-          </thead>
-          <tbody id="annTbody"></tbody>
-        </table>
+        <div id="annBody">
+          <form class="audit-filter" id="annFilter" onsubmit="return false">
+            <select id="anfStatus" aria-label="状态">
+              <option value="live">生效中 + 待生效</option>
+              <option value="active">生效中</option>
+              <option value="pending">待生效</option>
+              <option value="expired">已过期</option>
+              <option value="disabled">已停用</option>
+              <option value="all">全部</option>
+            </select>
+            <input type="text" id="anfQ" placeholder="关键字" autocomplete="off" style="width:200px">
+            <input type="date" id="anfSince" aria-label="起始日期">
+            <span class="audit-dash">至</span>
+            <input type="date" id="anfUntil" aria-label="截止日期">
+            <button type="button" class="btn" id="anfReset">清空</button>
+            <span class="mf-hint" id="annHint"></span>
+          </form>
+          <div class="tbl-wrap">
+          <table id="annTable" style="table-layout:fixed;min-width:1100px">
+            <thead>
+              <tr>
+                <th style="width:150px">时间</th><th>内容</th><th style="width:72px">级别</th>
+                <th style="width:250px">生效期</th><th style="width:84px">状态</th>
+                <th style="width:220px">可见权限</th><th style="width:120px">操作</th>
+              </tr>
+            </thead>
+            <tbody id="annTbody"></tbody>
+          </table>
+          </div>
         </div>
       </div>
 
@@ -1048,14 +1077,47 @@ function toLocalInput(iso) {
   return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`;
 }
 
+/* 公告状态：已停用 > 待生效（还没到开始时间）> 已过期（过了结束时间）> 生效中 */
+const ANN_STATUS = { active: '生效中', pending: '待生效', expired: '已过期', disabled: '已停用' };
+function annStatus(a, now = new Date()) {
+  if (!a.enabled) return 'disabled';
+  if (a.starts_at && new Date(a.starts_at) > now) return 'pending';
+  if (a.ends_at && new Date(a.ends_at) < now) return 'expired';
+  return 'active';
+}
+
+function filteredAnns() {
+  const st = document.getElementById('anfStatus').value;
+  const q = document.getElementById('anfQ').value.trim().toLowerCase();
+  const since = document.getElementById('anfSince').value;
+  const until = document.getElementById('anfUntil').value;
+  return anns.filter(a => {
+    const s = annStatus(a);
+    if (st === 'live' ? !(s === 'active' || s === 'pending') : st !== 'all' && s !== st) return false;
+    if (q && !(a.content + ' ' + (a.requires || []).join(' ')).toLowerCase().includes(q)) return false;
+    const day = (a.created_at || '').slice(0, 10);
+    if (since && day && day < since) return false;
+    if (until && day && day > until) return false;
+    return true;
+  });
+}
+
 function renderAnnTable() {
   const tbody = document.getElementById('annTbody');
-  if (!anns.length) {
-    tbody.innerHTML = `<tr><td colspan="6" style="text-align:center;color:var(--dim);padding:26px">
-      暂无公告 · 适合发维护通知、新系统上线提醒，显示在门户顶部</td></tr>`;
+  const counts = { active: 0, pending: 0, expired: 0, disabled: 0 };
+  anns.forEach(a => counts[annStatus(a)]++);
+  document.getElementById('annSub').textContent =
+    `生效中 ${counts.active} · 待生效 ${counts.pending} · 共 ${anns.length} / 50 条`;
+  const list = filteredAnns();
+  document.getElementById('annHint').textContent =
+    `显示 ${list.length} / ${anns.length} 条 · 库里最多保留 50 条，超出时新增会自动删除最早失效的`;
+  if (!list.length) {
+    tbody.innerHTML = `<tr><td colspan="7" style="text-align:center;color:var(--dim);padding:26px">
+      ${anns.length ? '没有符合条件的公告' : '暂无公告 · 适合发维护通知、新系统上线提醒，显示在门户顶部'}</td></tr>`;
     return;
   }
-  tbody.innerHTML = anns.map(a => {
+  tbody.innerHTML = list.map(a => {
+    const s = annStatus(a);
     const reqs = a.requires.length
       ? a.requires.map(r => `<span class="chip">${esc(r)}</span>`).join('')
       : '<span class="chip all">所有登录用户</span>';
@@ -1065,16 +1127,36 @@ function renderAnnTable() {
     if (start && end && start.slice(0, 10) === end.slice(0, 10)) end = end.slice(11);
     const range = `${start || '立即'} ～ ${end || '长期'}`;
     return `<tr class="row">
-      <td style="max-width:340px">${esc(a.content)}</td>
+      <td style="font-size:14.5px;color:var(--dim);white-space:nowrap">${fmtDT(a.created_at) || '—'}</td>
+      <td>${esc(a.content)}</td>
       <td>${a.level === 'warning' ? '<span class="chip warn">警示</span>' : '<span class="chip">提示</span>'}</td>
       <td style="font-size:14.5px;color:var(--dim);white-space:nowrap">${range}</td>
+      <td><span class="st ${s}">${ANN_STATUS[s]}</span></td>
       <td>${reqs}</td>
-      <td><span class="status-dot ${a.enabled ? '' : 'off'}">${a.enabled ? '启用' : '停用'}</span></td>
       <td><button class="row-btn" onclick="openAnnEdit(${a.id})">编辑</button>
           <button class="row-btn del" onclick="removeAnn(${a.id})">删除</button></td>
     </tr>`;
   }).join('');
 }
+
+/* 公告区折叠（默认展开；折叠状态记本机） */
+function setAnnOpen(open) {
+  document.getElementById('annToggle').setAttribute('aria-expanded', String(open));
+  document.getElementById('annBody').hidden = !open;
+  try { localStorage.setItem('annOpen', open ? '1' : '0'); } catch {}
+}
+document.getElementById('annToggle').addEventListener('click', () =>
+  setAnnOpen(document.getElementById('annToggle').getAttribute('aria-expanded') !== 'true'));
+try { if (localStorage.getItem('annOpen') === '0') setAnnOpen(false); } catch {}
+['anfStatus', 'anfQ', 'anfSince', 'anfUntil'].forEach(id =>
+  document.getElementById(id).addEventListener('input', renderAnnTable));
+document.getElementById('anfReset').addEventListener('click', () => {
+  document.getElementById('anfStatus').value = 'live';
+  document.getElementById('anfQ').value = '';
+  document.getElementById('anfSince').value = '';
+  document.getElementById('anfUntil').value = '';
+  renderAnnTable();
+});
 
 /* 公告内容字数提示：maxlength 已硬限 200，这里只做可见计数 */
 function renderAnnCount() {

@@ -18,7 +18,7 @@ db.py — PostgreSQL 数据层（psycopg3 + 连接池）
 """
 
 import os
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Optional
 
@@ -253,7 +253,37 @@ def _row_to_announcement(row: dict) -> dict:
         "ends_at": row["ends_at"].isoformat() if row["ends_at"] else None,
         "requires": list(row["requires"] or []),
         "enabled": row["enabled"],
+        "created_at": row["created_at"].isoformat() if row.get("created_at") else None,
     }
+
+
+ANNOUNCEMENT_CAP = 50   # 库里最多保留的公告条数；超出时自动删除（见 select_prunable）
+
+
+def select_prunable(anns: list[dict], cap: int = ANNOUNCEMENT_CAP, now: Optional[datetime] = None) -> list[int]:
+    """超过 cap 时该删哪些：先删"已失效"的（已过期 / 已停用），再删其余里最早的，
+    每组内都按 id 从小到大（越早越先删）。返回要删的 id 列表。纯函数，便于测试。"""
+    if len(anns) <= cap:
+        return []
+    now = now or datetime.now(timezone.utc)
+
+    def dead(a: dict) -> bool:
+        ends = a.get("ends_at")
+        if isinstance(ends, str):
+            ends = datetime.fromisoformat(ends)
+        return (not a.get("enabled", True)) or (ends is not None and ends < now)
+
+    ordered = sorted(anns, key=lambda a: (0 if dead(a) else 1, a["id"]))
+    return [a["id"] for a in ordered[: len(anns) - cap]]
+
+
+def prune_announcements(cap: int = ANNOUNCEMENT_CAP) -> list[int]:
+    """把公告总数压到 cap 以内，返回被删的 id。"""
+    ids = select_prunable(list_announcements(), cap)
+    if ids:
+        with pool().connection() as conn:
+            conn.execute("DELETE FROM announcements WHERE id = ANY(%s)", (ids,))
+    return ids
 
 
 def list_announcements() -> list[dict]:

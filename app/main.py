@@ -7,7 +7,7 @@ main.py — ZesTrade 企业门户后端
   GET  /api/favorites               我的常用应用 id 列表（登录即可）
   PUT  /api/favorites               保存我的常用应用（整表替换，顺序即列表顺序）
   GET  /api/announcements           当前生效的横幅公告（按权限码过滤，规则同应用）
-  GET/POST/PUT/DEL /api/admin/announcements[/{id}]  公告管理
+  GET/POST/PUT/DEL /api/admin/announcements[/{id}]  公告管理（库里最多 50 条，新增超出自动删最早失效的）
   GET  /api/admin/audit             管理操作审计（分页：before_id 游标；筛选：actor/action/target_type/since/until）
   GET  /api/admin/modules           全部模块
   POST /api/admin/modules           新增模块
@@ -448,6 +448,11 @@ async def admin_create_announcement(
     created = db.create_announcement(body.model_dump())
     db.log_action(_actor(auth), "create", "announcement", created["id"],
                   {"content": created["content"]})
+    # 库里最多保留 ANNOUNCEMENT_CAP 条：超出时自动删最早失效的，记一条汇总审计
+    pruned = db.prune_announcements()
+    if pruned:
+        db.log_action(_actor(auth), "delete", "announcement", "auto",
+                      {"auto": True, "cap": db.ANNOUNCEMENT_CAP, "ids": pruned})
     return created
 
 
