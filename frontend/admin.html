@@ -181,6 +181,22 @@
   tr.grp td { background: #f4f7fc; color: #45557a; font-weight: 700; font-size: 14.5px; padding: 8px 14px; }
   .mod-time { color: var(--dim); font-size: 14.5px; white-space: nowrap; }
   .btn:disabled { opacity: .45; cursor: not-allowed; box-shadow: none; }
+  /* 编辑弹窗顶部：门户磁贴实时预览（与门户 .acard 同一套尺寸与配色） */
+  .preview-box { background: #fff; border: 1px dashed #c4d8f8; border-radius: 12px; padding: 12px 14px 14px; margin-bottom: 18px; }
+  .preview-box .pv-t { font-size: 13.5px; color: var(--dim); margin-bottom: 8px; }
+  .pv-card {
+    display: flex; align-items: center; gap: 14px; position: relative; width: min(300px, 100%);
+    background: #f4f8fd; border: 1px solid #eaf1fa; border-radius: 12px; padding: 17px 16px;
+  }
+  .pv-card .ic { width: 48px; height: 48px; border-radius: 13px; font-size: 25px; color: #fff; display: grid; place-items: center; flex: none; }
+  .pv-card .ic img { width: 26px; height: 26px; object-fit: contain; }
+  .pv-card > div { flex: 1; min-width: 0; }
+  .pv-card b { display: block; font-size: 16.5px; font-weight: 650; color: var(--ink-strong); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .pv-card span { display: block; font-size: 14px; color: var(--dim); margin-top: 5px; line-height: 1.5; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .pv-card .maint { display: inline-block; font-style: normal; font-size: 12.5px; font-weight: 600; color: #c2701a; background: #fff3e0; border-radius: 999px; padding: 2px 8px; margin-left: 6px; }
+  .pv-card .owner-line { font-size: 13px; color: #93a1bc; margin-top: 4px; }
+  .pv-card.off { opacity: .45; }
+  .pv-card.off::after { content: '已停用 · 门户不展示'; position: absolute; right: 12px; top: 10px; font-size: 12px; color: #c2701a; }
   /* 分类顺序弹窗：可拖拽的分类清单 */
   .cat-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
   .cat-list li {
@@ -263,7 +279,8 @@
           <p>增删改模块、拖拽排序、按 RBAC 权限码配置可见性。"可见权限"为空 = 所有登录用户可见。</p>
         </div>
         <div class="actions">
-          <button class="btn" id="catOrderBtn">分类顺序</button>
+          <a class="btn" href="/" target="_blank" rel="noopener" title="新开标签页查看门户实际效果">查看门户 ↗</a>
+          <button class="btn" id="catOrderBtn">分类顺序与颜色</button>
           <button class="btn save-order" id="saveOrderBtn">保存排序</button>
           <button class="btn primary" id="addBtn">＋ 新增模块</button>
         </div>
@@ -381,6 +398,10 @@
   <div class="modal">
     <h2 id="modalTitle">新增模块</h2>
     <div class="modal-sub">配置门户上展示的应用入口；带 * 为必填</div>
+    <div class="preview-box">
+      <div class="pv-t">门户效果预览（随下方输入实时变化；底色由分类决定）</div>
+      <div id="pvCard"></div>
+    </div>
     <div class="field">
       <label>模块名称 *</label>
       <input type="text" id="fName" maxlength="50" placeholder="例如：领星 ERP">
@@ -937,6 +958,7 @@ document.getElementById('iconGrid').addEventListener('click', (e) => {
   const input = document.getElementById('fIcon');
   input.value = input.value.trim() === cell.dataset.icon ? '' : cell.dataset.icon;
   renderIconGrid();
+  renderPreview();
 });
 document.getElementById('fIcon').addEventListener('input', renderIconGrid);
 
@@ -958,8 +980,32 @@ document.getElementById('catChips').addEventListener('click', (e) => {
   // 再点一次已选中的分类 = 取消选择
   input.value = input.value.trim() === chip.dataset.cat ? '' : chip.dataset.cat;
   renderCatChips();
+  renderPreview();
 });
 document.getElementById('fCat').addEventListener('input', renderCatChips);
+
+/* 编辑弹窗里的门户磁贴预览：读表单当前值，与门户 tileHTML 同一套结构与徽标 */
+function renderPreview() {
+  const m = {
+    name: document.getElementById('fName').value.trim() || '模块名称',
+    description: document.getElementById('fDesc').value.trim(),
+    icon: document.getElementById('fIcon').value.trim(),
+    category: document.getElementById('fCat').value.trim(),
+    owner_name: document.getElementById('fOwner').value.trim(),
+    status: document.getElementById('fStatus').value,
+    enabled: document.getElementById('fEnabled').checked,
+  };
+  const maint = m.status === 'maintenance' ? '<em class="maint">维护中</em>' : '';
+  const owner = m.owner_name ? `<span class="owner-line">负责人：${esc(m.owner_name)}</span>` : '';
+  document.getElementById('pvCard').innerHTML = `<div class="pv-card ${m.enabled ? '' : 'off'}">
+    ${badgeHTML(m, categoryColors, 48)}
+    <div><b title="${esc(m.name)}">${esc(m.name)}${maint}</b><span>${esc(m.description) || '&nbsp;'}</span>${owner}</div>
+  </div>`;
+}
+['fName', 'fDesc', 'fIcon', 'fCat', 'fOwner', 'fStatus', 'fEnabled'].forEach(id =>
+  document.getElementById(id).addEventListener('input', renderPreview));
+document.getElementById('fStatus').addEventListener('change', renderPreview);
+document.getElementById('fEnabled').addEventListener('change', renderPreview);
 
 function openModal(title, m) {
   document.getElementById('modalTitle').textContent = title;
@@ -973,6 +1019,7 @@ function openModal(title, m) {
   document.getElementById('fEnabled').checked = m ? m.enabled : true;
   renderIconGrid();
   renderCatChips();
+  renderPreview();
   modulePerms.open(m?.requires);
   document.getElementById('overlay').classList.add('open');
 }
